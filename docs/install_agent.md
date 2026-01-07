@@ -78,24 +78,13 @@ ssh root@<ip-do-opnsense>
 ### Passo 2.2: Instalar Dependências
 
 ```bash
-# Atualizar pacotes
-pkg update
-
-# Verificar qual Python está disponível
-pkg search python3 | grep -E "^python3"
-
-# Para OPNsense 24.7+ (Python 3.11)
+# Instalar Python 3.11 e requests
 pkg install -y python311 py311-requests
-
-# Para OPNsense 24.1-24.6 (Python 3.9)
-# pkg install -y python39 py39-requests
 
 # Verificar instalação
 python3 --version
 python3 -c "import requests; print('requests OK')"
 ```
-
-> **Nota:** O OPNsense mantém seu próprio repositório de pacotes. Use `pkg search` para encontrar os nomes exatos dos pacotes disponíveis na sua versão.
 
 ### Passo 2.3: Criar Diretórios
 
@@ -190,7 +179,7 @@ cat > /usr/local/etc/rc.d/firewall365_agent << 'EOF'
 
 name="firewall365_agent"
 rcvar="firewall365_agent_enable"
-command="/usr/local/bin/python3"
+command="/usr/local/bin/python3.11"
 command_args="/usr/local/bin/firewall365-agent"
 pidfile="/var/run/${name}.pid"
 
