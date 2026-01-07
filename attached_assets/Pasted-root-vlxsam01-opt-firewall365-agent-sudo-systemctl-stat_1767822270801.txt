@@ -1,0 +1,78 @@
+root@vlxsam01:/opt/firewall365/agent# sudo systemctl status firewall365
+sudo journalctl -u firewall365 -n 50
+● firewall365.service - Firewall365 - OPNSense Management Platform
+     Loaded: loaded (/etc/systemd/system/firewall365.service; enabled; preset: >
+     Active: active (running) since Wed 2026-01-07 20:57:27 UTC; 47min ago
+   Main PID: 1282 (node)
+      Tasks: 11 (limit: 4604)
+     Memory: 75.9M (peak: 78.3M)
+        CPU: 512ms
+     CGroup: /system.slice/firewall365.service
+             └─1282 /usr/bin/node dist/index.cjs
+
+Jan 07 20:59:46 vlxsam01 firewall365[1282]: 8:59:46 PM [express] GET /api/firew>
+Jan 07 21:40:55 vlxsam01 firewall365[1282]: 9:40:55 PM [express] POST /api/agen>
+Jan 07 21:40:55 vlxsam01 firewall365[1282]: 9:40:55 PM [express] POST /api/agen>
+Jan 07 21:41:43 vlxsam01 firewall365[1282]: 9:41:43 PM [express] POST /api/auth>
+Jan 07 21:41:43 vlxsam01 firewall365[1282]: 9:41:43 PM [express] GET /api/tenan>
+Jan 07 21:41:43 vlxsam01 firewall365[1282]: 9:41:43 PM [express] GET /api/firew>
+Jan 07 21:41:58 vlxsam01 firewall365[1282]: 9:41:58 PM [express] POST /api/agen>
+Jan 07 21:42:55 vlxsam01 firewall365[1282]: 9:42:55 PM [express] POST /api/agen>
+Jan 07 21:43:00 vlxsam01 firewall365[1282]: 9:43:00 PM [express] POST /api/agen>
+Jan 07 21:44:03 vlxsam01 firewall365[1282]: 9:44:03 PM [express] POST /api/agen>
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   where: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   schema: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   table: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   column: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   dataType: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   constraint: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   file: 'auth.c',
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   line: '331',
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   routine: 'auth_failed'
+Jan 07 20:43:57 vlxsam01 firewall365[30232]: }
+Jan 07 20:43:57 vlxsam01 firewall365[30232]: 8:43:57 PM [express] serving on po>
+Jan 07 20:44:02 vlxsam01 firewall365[30232]: 8:44:02 PM [express] GET /api/heal>
+Jan 07 20:44:02 vlxsam01 firewall365[30232]: 8:44:02 PM [express] POST /api/aut>
+Jan 07 20:48:59 vlxsam01 systemd[1]: Stopping firewall365.service - Firewall365>
+Jan 07 20:48:59 vlxsam01 systemd[1]: firewall365.service: Deactivated successfu>
+Jan 07 20:48:59 vlxsam01 systemd[1]: Stopped firewall365.service - Firewall365 >
+Jan 07 20:48:59 vlxsam01 systemd[1]: /etc/systemd/system/firewall365.service:15>
+Jan 07 20:48:59 vlxsam01 systemd[1]: /etc/systemd/system/firewall365.service:16>
+Jan 07 20:48:59 vlxsam01 systemd[1]: /etc/systemd/system/firewall365.service:15>
+Jan 07 20:48:59 vlxsam01 systemd[1]: /etc/systemd/system/firewall365.service:16>
+Jan 07 20:48:59 vlxsam01 systemd[1]: /etc/systemd/system/firewall365.service:15>
+Jan 07 20:48:59 vlxsam01 systemd[1]: /etc/systemd/system/firewall365.service:16>
+Jan 07 20:49:22 vlxsam01 systemd[1]: Started firewall365.service - Firewall365 >
+root@vlxsam01:/opt/firewall365/agent# cd /var/www/firewall365
+npm run build
+sudo systemctl restart firewall365
+-bash: cd: /var/www/firewall365: No such file or directory
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.1.12 building for production...
+✓ 2792 modules transformed.
+rendering chunks (1)...[meta-images] no Replit deployment domain found, skipping meta tag updates
+../dist/public/index.html                                                                     1.36 kB │ gzip:   0.60 kB
+../dist/public/assets/abstract_cybernetic_network_background_dark_blue_teal-DNldj8rF.png  1,079.75 kB
+../dist/public/assets/index-4T9PGzQU.css                                                     99.43 kB │ gzip:  16.07 kB
+../dist/public/assets/index-CyJozKTP.js                                                     973.24 kB │ gzip: 282.07 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.11s
+building server...
+
+  dist/index.cjs  1.1mb ⚠️
+
+⚡ Done in 130ms
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.7.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.7.0
+npm notice To update run: npm install -g npm@11.7.0
+npm notice
+root@vlxsam01:/opt/firewall365/agent#
