@@ -1,0 +1,66 @@
+root@vlxsam01:~# # Baixar e executar o script
+curl -fsSL https://raw.githubusercontent.com/GruppenIT/Fw365Management/main/scripts/troubleshoot.sh | sudo bash
+
+╔══════════════════════════════════════════════════════════════╗
+║              FIREWALL365 - TROUBLESHOOTING                   ║
+╚══════════════════════════════════════════════════════════════╝
+
+[1/7] Verificando serviço firewall365...
+  ✓ Serviço está rodando
+
+[2/7] Verificando PostgreSQL...
+  ✓ PostgreSQL está rodando
+
+[3/7] Verificando banco de dados...
+  ✓ Banco 'firewall365' existe
+
+[4/7] Verificando tabelas no banco...
+  ✗ Nenhuma tabela encontrada - schema não foi aplicado
+    Execute: cd /opt/firewall365 && npm run db:push
+
+[5/7] Verificando usuário admin...
+  ✗ Usuário admin NÃO existe no banco
+    Criando usuário admin...
+    Reiniciando serviço para criar admin...
+  ✗ Falha ao criar usuário admin automaticamente
+
+[6/7] Verificando API...
+  ✓ API respondendo (HTTP 200)
+
+[7/7] Testando login...
+  ✗ Falha no login
+    Resposta da API: {"message":"password authentication failed for user \"firewall365\""}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Logs do serviço (últimas 20 linhas):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   severity: 'FATAL',
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   code: '28P01',
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   detail: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   hint: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   position: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   internalPosition: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   internalQuery: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   where: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   schema: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   table: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   column: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   dataType: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   constraint: undefined,
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   file: 'auth.c',
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   line: '331',
+Jan 07 20:43:57 vlxsam01 firewall365[30232]:   routine: 'auth_failed'
+Jan 07 20:43:57 vlxsam01 firewall365[30232]: }
+Jan 07 20:43:57 vlxsam01 firewall365[30232]: 8:43:57 PM [express] serving on port 5000
+Jan 07 20:44:02 vlxsam01 firewall365[30232]: 8:44:02 PM [express] GET /api/health 200 in 3ms :: {"status":"ok","timestamp":"2026-01-07T20:44:02.281Z"}
+Jan 07 20:44:02 vlxsam01 firewall365[30232]: 8:44:02 PM [express] POST /api/auth/login 500 in 7ms :: {"message":"password authentication failed for user \"firewall365\""}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Comandos úteis:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Ver logs em tempo real:  sudo journalctl -u firewall365 -f
+  Reiniciar serviço:       sudo systemctl restart firewall365
+  Aplicar schema do banco: cd /opt/firewall365 && npm run db:push
+  Verificar .env:          cat /opt/firewall365/.env
+
+root@vlxsam01:~#
