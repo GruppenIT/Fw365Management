@@ -1,0 +1,73 @@
+[OK] Certificado SSL gerado em /etc/nginx/ssl/firewall365.crt
+[INFO] Configurando Nginx como reverse proxy...
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+[OK] Nginx configurado
+[INFO] Criando usuário do sistema...
+[OK] Usuário firewall365 criado
+[INFO] Configurando aplicação...
+[WARN] Código fonte não encontrado. Clone manualmente para /opt/firewall365
+[OK] Aplicação configurada
+[INFO] Criando serviço systemd...
+Created symlink /etc/systemd/system/multi-user.target.wants/firewall365.service → /etc/systemd/system/firewall365.service.
+[OK] Serviço systemd criado
+[INFO] Configurando firewall (UFW)...
+Backing up 'user.rules' to '/etc/ufw/user.rules.20260107_202320'
+Backing up 'before.rules' to '/etc/ufw/before.rules.20260107_202320'
+Backing up 'after.rules' to '/etc/ufw/after.rules.20260107_202320'
+Backing up 'user6.rules' to '/etc/ufw/user6.rules.20260107_202320'
+Backing up 'before6.rules' to '/etc/ufw/before6.rules.20260107_202320'
+Backing up 'after6.rules' to '/etc/ufw/after6.rules.20260107_202320'
+
+Default incoming policy changed to 'deny'
+(be sure to update your rules accordingly)
+Default outgoing policy changed to 'allow'
+(be sure to update your rules accordingly)
+Rules updated
+Rules updated (v6)
+Rules updated
+Rules updated (v6)
+Rules updated
+Rules updated (v6)
+Firewall is active and enabled on system startup
+[OK] Firewall configurado
+
+╔══════════════════════════════════════════════════════════════╗
+║              INSTALAÇÃO CONCLUÍDA COM SUCESSO!               ║
+╚══════════════════════════════════════════════════════════════╝
+
+Informações de Acesso:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  URL:              https://opn.gruppen.com.br
+  Diretório App:    /opt/firewall365
+
+Banco de Dados:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Host:             localhost
+  Database:         firewall365
+  Usuário:          firewall365
+  Senha:            wCg4c3GNNmviCnw5gz1J0AYq
+
+Certificado SSL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Certificado:      /etc/nginx/ssl/firewall365.crt
+  Chave:            /etc/nginx/ssl/firewall365.key
+  Validade:         10 anos
+
+Comandos Úteis:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Iniciar:          sudo systemctl start firewall365
+  Parar:            sudo systemctl stop firewall365
+  Status:           sudo systemctl status firewall365
+  Logs:             sudo journalctl -u firewall365 -f
+
+IMPORTANTE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. Configure o DNS de opn.gruppen.com.br para este servidor
+  2. Copie o código da aplicação para /opt/firewall365
+  3. Execute: cd /opt/firewall365 && npm install && npm run build
+  4. Inicie: sudo systemctl start firewall365
+
+  Guarde as credenciais do banco de dados em local seguro!
+
+root@vlxsam01:~#
