@@ -243,6 +243,7 @@ NGINX_CONFIG
 clone_repository() {
     log_info "Baixando código fonte..."
     
+    cd /tmp
     git clone --depth 1 --branch "$GITHUB_BRANCH" "$GITHUB_REPO" "$APP_DIR"
     
     log_success "Código fonte baixado"

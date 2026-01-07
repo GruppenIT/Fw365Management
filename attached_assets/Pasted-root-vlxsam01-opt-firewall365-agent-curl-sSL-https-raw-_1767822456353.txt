@@ -1,0 +1,58 @@
+root@vlxsam01:/opt/firewall365/agent# curl -sSL https://raw.githubusercontent.com/GruppenIT/Fw365Management/refs/heads/main/scripts/install.sh | sudo bash
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║      ███████╗██╗██████╗ ███████╗██╗    ██╗ █████╗ ██╗     ██╗║
+║      ██╔════╝██║██╔══██╗██╔════╝██║    ██║██╔══██╗██║     ██║║
+║      █████╗  ██║██████╔╝█████╗  ██║ █╗ ██║███████║██║     ██║║
+║      ██╔══╝  ██║██╔══██╗██╔══╝  ██║███╗██║██╔══██║██║     ██║║
+║      ██║     ██║██║  ██║███████╗╚███╔███╔╝██║  ██║███████╗██║║
+║      ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝║
+║                        3 6 5                                 ║
+║                                                              ║
+║          Instalador para Ubuntu 24.04 LTS                    ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+[OK] Ubuntu 24.04 LTS detectado
+[INFO] Iniciando instalação completa...
+
+[INFO] Limpando instalação anterior...
+DROP DATABASE
+DROP ROLE
+[OK] Limpeza concluída
+[INFO] Atualizando sistema e instalando pré-requisitos...
+[OK] Pré-requisitos instalados
+[INFO] Instalando Node.js v20...
+[OK] Node.js vv20.19.6 já está instalado
+[INFO] Instalando PostgreSQL...
+Synchronizing state of postgresql.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable postgresql
+sh: 0: getcwd() failed: No such file or directory
+[INFO] Criando banco de dados...
+CREATE ROLE
+CREATE DATABASE
+GRANT
+ALTER ROLE
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+[OK] PostgreSQL configurado
+[INFO] Instalando Nginx...
+Synchronizing state of nginx.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable nginx
+sh: 0: getcwd() failed: No such file or directory
+[OK] Nginx instalado
+[INFO] Gerando certificado SSL autoassinado (válido por 10 anos)...
+.+....+.........+.....+.........+...+...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*.....+.....+.+.....+.......+..+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*..+.+..............+......+...+..........+............+.........+..+.......+..+...............+...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+.+.........+.....+.........+......+......+.........+......+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*...+........+..........+..+..........+..+...+.+..+.............+...........+...+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*.+..........+...+.....+.......+.....+..................+...+.+...+...+.....+.......+......+......+.....+......+...+.+.....+.+.....+.......+..+......+.......+.....+................+..+...+.+...............+.....+....+......+.........+...........+.+..+.......+...+..+.............+...+............+......+......+...+.................+...+................+..............+...+....+..................+..+....+..+....+.....+....+..+....+...+......+.....+....+..+.+...............+...+...........+...+......+.+.....+.+...............+..+.+..+............+.............+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+-----
+[OK] Certificado SSL gerado
+[INFO] Configurando Nginx...
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+[OK] Nginx configurado
+[INFO] Baixando código fonte...
+Cloning into '/opt/firewall365'...
+fatal: Unable to read current working directory: No such file or directory
+root@vlxsam01:/opt/firewall365/agent#
