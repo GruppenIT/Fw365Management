@@ -103,8 +103,8 @@ chmod 755 /var/log/firewall365
 ### Passo 2.4: Baixar o Script do Agente
 
 ```bash
-# Download direto
-curl -o /usr/local/bin/firewall365-agent https://opn.gruppen.com.br/agent/agent.py
+# Download do GitHub
+curl -o /usr/local/bin/firewall365-agent https://raw.githubusercontent.com/GruppenIT/Fw365Management/refs/heads/main/agent/agent.py
 chmod +x /usr/local/bin/firewall365-agent
 ```
 
@@ -354,8 +354,8 @@ verify_ssl = false
 # Parar o serviço
 service firewall365_agent stop
 
-# Baixar nova versão
-curl -o /usr/local/bin/firewall365-agent https://opn.gruppen.com.br/agent/agent.py
+# Baixar nova versão do GitHub
+curl -o /usr/local/bin/firewall365-agent https://raw.githubusercontent.com/GruppenIT/Fw365Management/refs/heads/main/agent/agent.py
 
 # Reiniciar
 service firewall365_agent start
