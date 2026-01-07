@@ -170,6 +170,16 @@ export async function registerRoutes(
     }
   });
 
+  // Get pending firewalls - MUST be before /:id route
+  app.get("/api/firewalls/pending", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const firewalls = await storage.getPendingFirewalls();
+      res.json(firewalls);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/firewalls/:id", authMiddleware, async (req: AuthRequest, res) => {
     try {
       const firewall = await storage.getFirewall(req.params.id);
@@ -404,16 +414,6 @@ export async function registerRoutes(
         status: "pending",
         note: "Firewall is pending approval. An administrator needs to approve it in the console.",
       });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Get pending firewalls (admin only)
-  app.get("/api/firewalls/pending", authMiddleware, async (req: AuthRequest, res) => {
-    try {
-      const firewalls = await storage.getPendingFirewalls();
-      res.json(firewalls);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
