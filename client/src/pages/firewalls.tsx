@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, MoreHorizontal, Circle } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Circle, Eye } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -402,29 +402,42 @@ export default function FirewallsPage() {
                     <TableCell>{fw.version || "-"}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{formatLastSeen(fw.lastSeen)}</TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0" data-testid={`button-actions-${fw.id}`}>
-                            <span className="sr-only">Abrir menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                          <Link href={`/firewalls/${fw.id}`}>
-                             <DropdownMenuItem className="cursor-pointer">Ver Telemetria</DropdownMenuItem>
-                          </Link>
-                          <DropdownMenuItem>Acesso Remoto</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => deleteMutation.mutate(fw.id)}
-                            data-testid={`button-delete-${fw.id}`}
+                      <div className="flex items-center justify-end gap-1">
+                        <Link href={`/firewalls/${fw.id}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            data-testid={`button-view-${fw.id}`}
+                            title="Ver detalhes"
                           >
-                            Remover
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0" data-testid={`button-actions-${fw.id}`}>
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                            <Link href={`/firewalls/${fw.id}`}>
+                              <DropdownMenuItem className="cursor-pointer">Ver Telemetria</DropdownMenuItem>
+                            </Link>
+                            <DropdownMenuItem>Acesso Remoto</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={() => deleteMutation.mutate(fw.id)}
+                              data-testid={`button-delete-${fw.id}`}
+                            >
+                              Remover
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

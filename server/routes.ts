@@ -2,8 +2,18 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateToken, authMiddleware, type AuthRequest } from "./auth";
-import { insertUserSchema, insertTenantSchema, insertFirewallSchema, insertTelemetrySchema } from "@shared/schema";
+import { 
+  insertUserSchema, 
+  insertTenantSchema, 
+  insertFirewallSchema, 
+  insertTelemetrySchema,
+  insertTelemetrySystemSchema,
+  insertTelemetryInterfacesSchema,
+  insertTelemetryServicesSchema,
+  insertAlertSchema,
+} from "@shared/schema";
 import { fromError } from "zod-validation-error";
+import { z } from "zod";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -280,6 +290,199 @@ export async function registerRoutes(
       if (error.name === "ZodError") {
         return res.status(400).json({ message: fromError(error).toString() });
       }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Agent endpoint for system telemetry (low frequency)
+  app.post("/api/telemetry/system", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "No token provided" });
+      }
+
+      const token = authHeader.substring(7);
+      const apiToken = await storage.getApiToken(token);
+      if (!apiToken) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const data = insertTelemetrySystemSchema.parse(req.body);
+      
+      const firewall = await storage.getFirewall(data.firewallId);
+      if (firewall && firewall.status === "pending") {
+        return res.status(403).json({ message: "Firewall pending approval" });
+      }
+
+      const record = await storage.createTelemetrySystem(data);
+      res.status(201).json(record);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: fromError(error).toString() });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Agent endpoint for interface telemetry (medium frequency)
+  app.post("/api/telemetry/interfaces", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "No token provided" });
+      }
+
+      const token = authHeader.substring(7);
+      const apiToken = await storage.getApiToken(token);
+      if (!apiToken) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { firewallId, interfaces } = req.body;
+      if (!firewallId || !interfaces || !Array.isArray(interfaces)) {
+        return res.status(400).json({ message: "firewallId and interfaces array required" });
+      }
+
+      const firewall = await storage.getFirewall(firewallId);
+      if (firewall && firewall.status === "pending") {
+        return res.status(403).json({ message: "Firewall pending approval" });
+      }
+
+      // Delete old interface data and insert new
+      await storage.deleteTelemetryInterfaces(firewallId);
+      const data = interfaces.map((iface: any) => ({
+        firewallId,
+        ...insertTelemetryInterfacesSchema.omit({ firewallId: true }).parse(iface),
+      }));
+      
+      const records = await storage.createTelemetryInterfaces(data);
+      res.status(201).json(records);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: fromError(error).toString() });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Agent endpoint for services telemetry (medium frequency)
+  app.post("/api/telemetry/services", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "No token provided" });
+      }
+
+      const token = authHeader.substring(7);
+      const apiToken = await storage.getApiToken(token);
+      if (!apiToken) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { firewallId, services } = req.body;
+      if (!firewallId || !services || !Array.isArray(services)) {
+        return res.status(400).json({ message: "firewallId and services array required" });
+      }
+
+      const firewall = await storage.getFirewall(firewallId);
+      if (firewall && firewall.status === "pending") {
+        return res.status(403).json({ message: "Firewall pending approval" });
+      }
+
+      // Delete old service data and insert new
+      await storage.deleteTelemetryServices(firewallId);
+      const data = services.map((svc: any) => ({
+        firewallId,
+        ...insertTelemetryServicesSchema.omit({ firewallId: true }).parse(svc),
+      }));
+      
+      const records = await storage.createTelemetryServices(data);
+      res.status(201).json(records);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: fromError(error).toString() });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Agent endpoint for alerts
+  app.post("/api/alerts", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "No token provided" });
+      }
+
+      const token = authHeader.substring(7);
+      const apiToken = await storage.getApiToken(token);
+      if (!apiToken) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { firewallId, alerts: alertsData } = req.body;
+      if (!firewallId || !alertsData || !Array.isArray(alertsData)) {
+        return res.status(400).json({ message: "firewallId and alerts array required" });
+      }
+
+      const firewall = await storage.getFirewall(firewallId);
+      if (firewall && firewall.status === "pending") {
+        return res.status(403).json({ message: "Firewall pending approval" });
+      }
+
+      const data = alertsData.map((alert: any) => ({
+        firewallId,
+        ...insertAlertSchema.omit({ firewallId: true }).parse(alert),
+      }));
+      
+      const records = await storage.createAlerts(data);
+      res.status(201).json(records);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: fromError(error).toString() });
+      }
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get system telemetry for a firewall
+  app.get("/api/telemetry/:firewallId/system", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const data = await storage.getTelemetrySystem(req.params.firewallId);
+      res.json(data || null);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get interface telemetry for a firewall
+  app.get("/api/telemetry/:firewallId/interfaces", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const data = await storage.getTelemetryInterfaces(req.params.firewallId);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get services telemetry for a firewall
+  app.get("/api/telemetry/:firewallId/services", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const data = await storage.getTelemetryServices(req.params.firewallId);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get alerts for a firewall
+  app.get("/api/alerts/:firewallId", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const data = await storage.getAlerts(req.params.firewallId, limit);
+      res.json(data);
+    } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });

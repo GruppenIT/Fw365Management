@@ -2,7 +2,17 @@
 
 ## Visão Geral
 
-Este documento descreve o processo de instalação e configuração do agente Firewall365 em dispositivos OPNSense/FreeBSD. O agente v2.0.0 inclui **auto-registro automático** - basta instalar e o firewall aparecerá na console para aprovação.
+Este documento descreve o processo de instalação e configuração do agente Firewall365 em dispositivos OPNSense/FreeBSD. O agente v3.0.0 inclui **auto-registro automático** e **coleta em 3 níveis de frequência** - basta instalar e o firewall aparecerá na console para aprovação.
+
+### Coleta de Métricas em Tiers
+
+O agente coleta métricas em diferentes frequências:
+
+| Tier | Intervalo Padrão | Métricas |
+|------|------------------|----------|
+| **Alta** | 60 segundos | CPU, Memória, Throughput WAN |
+| **Média** | 5 minutos | Interfaces de rede, Status dos serviços |
+| **Baixa** | 30 minutos | Uptime, Disco, Load Average, Temperatura |
 
 ---
 
@@ -201,12 +211,15 @@ tail -f /var/log/firewall365/agent.log
 
 Saída esperada após aprovação:
 ```
-2024-01-15 10:30:00 [INFO] Iniciando Firewall365 Agent v2.0.0
+2024-01-15 10:30:00 [INFO] Iniciando Firewall365 Agent v3.0.0
+2024-01-15 10:30:00 [INFO] Intervalos: Alta=60s, Média=300s, Baixa=1800s
 2024-01-15 10:30:01 [INFO] Firewall registrado com sucesso!
 2024-01-15 10:30:01 [INFO] Firewall ID: abc123-def456
 2024-01-15 10:30:01 [INFO] Status: pending
 2024-01-15 10:30:01 [INFO] Nota: Firewall is pending approval...
-2024-01-15 10:31:00 [INFO] Telemetria: CPU=15% | MEM=42% | WAN=125Mbps
+2024-01-15 10:31:00 [INFO] [HIGH] CPU=15% | MEM=42% | WAN=125Mbps
+2024-01-15 10:35:00 [INFO] [MEDIUM] Interfaces=5 | Serviços=12
+2024-01-15 11:00:00 [INFO] [LOW] Uptime=48.5h | Disco=35.2%
 ```
 
 ### Passo 5.3: Verificar Conectividade
@@ -314,4 +327,4 @@ Em caso de problemas:
 ---
 
 *Documento atualizado em: Janeiro 2026*
-*Versão do Agente: 2.0.0*
+*Versão do Agente: 3.0.0*

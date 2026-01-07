@@ -21,8 +21,15 @@ firewall_id =
 verify_ssl = false
 
 [agent]
-# Intervalo de coleta em segundos
-interval = 60
+# Intervalos de coleta em segundos (por tier)
+# Alta frequência: CPU, memória, throughput WAN
+interval_high = 60
+
+# Média frequência: interfaces, serviços
+interval_medium = 300
+
+# Baixa frequência: sistema, disco, uptime
+interval_low = 1800
 
 # Nível de log (DEBUG, INFO, WARNING, ERROR)
 log_level = INFO

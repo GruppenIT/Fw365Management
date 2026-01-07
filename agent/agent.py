@@ -8,8 +8,13 @@ e envia para a plataforma central Firewall365.
 
 O agente faz auto-registro automaticamente na primeira execução.
 
+Coleta em 3 tiers:
+- Alta frequência (1-3 min): CPU, memória, throughput
+- Média frequência (5-10 min): Interfaces, serviços
+- Baixa frequência (30-60 min): Sistema, disco, versão
+
 Autor: Firewall365
-Versão: 2.0.0
+Versão: 3.0.0
 Licença: MIT
 """
 
@@ -22,15 +27,16 @@ import signal
 import socket
 import subprocess
 import configparser
+import threading
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 try:
     import requests
     from requests.auth import HTTPBasicAuth
 except ImportError:
     print("ERRO: Módulo 'requests' não encontrado.")
-    print("Instale com: pkg install py39-requests")
+    print("Instale com: pkg install py311-requests")
     sys.exit(1)
 
 DEFAULT_CONFIG = {
@@ -47,7 +53,9 @@ DEFAULT_CONFIG = {
         'verify_ssl': 'true'
     },
     'agent': {
-        'interval': '60',
+        'interval_high': '60',
+        'interval_medium': '300',
+        'interval_low': '1800',
         'log_level': 'INFO',
         'log_file': '/var/log/firewall365/agent.log'
     }
@@ -64,6 +72,7 @@ class Firewall365Agent:
         self.config = self._load_config()
         self._setup_logging()
         self.running = True
+        self.last_cpu_times = None
         
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -273,16 +282,9 @@ class Firewall365Agent:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Erro ao acessar API OPNSense ({endpoint}): {e}")
             return None
-    
-    def collect_telemetry(self) -> Optional[Dict[str, Any]]:
-        """Coleta dados de telemetria do OPNSense."""
-        telemetry = {
-            'cpu': 0.0,
-            'memory': 0.0,
-            'wanThroughput': 0.0,
-            'interfaces': {}
-        }
-        
+
+    def _get_cpu_percent(self) -> float:
+        """Coleta uso de CPU com cálculo preciso entre intervalos."""
         try:
             result = subprocess.run(
                 ['sysctl', '-n', 'kern.cp_time'],
@@ -291,12 +293,22 @@ class Firewall365Agent:
             if result.returncode == 0:
                 cpu_times = [int(x) for x in result.stdout.strip().split()]
                 if len(cpu_times) >= 5:
-                    idle = cpu_times[4]
-                    total = sum(cpu_times)
-                    telemetry['cpu'] = round((1 - idle / total) * 100, 2) if total > 0 else 0
+                    if self.last_cpu_times:
+                        idle_diff = cpu_times[4] - self.last_cpu_times[4]
+                        total_diff = sum(cpu_times) - sum(self.last_cpu_times)
+                        cpu_percent = round((1 - idle_diff / total_diff) * 100, 2) if total_diff > 0 else 0
+                    else:
+                        idle = cpu_times[4]
+                        total = sum(cpu_times)
+                        cpu_percent = round((1 - idle / total) * 100, 2) if total > 0 else 0
+                    self.last_cpu_times = cpu_times
+                    return cpu_percent
         except Exception as e:
             self.logger.debug(f"Erro ao coletar CPU: {e}")
-        
+        return 0.0
+
+    def _get_memory_percent(self) -> float:
+        """Coleta uso de memória."""
         try:
             result = subprocess.run(
                 ['sysctl', '-n', 'hw.physmem', 'vm.stats.vm.v_inactive_count', 
@@ -311,9 +323,19 @@ class Firewall365Agent:
                     free_pages = sum(int(lines[i]) for i in range(1, len(lines)) if lines[i].isdigit())
                     free_mem = free_pages * page_size
                     used_mem = physmem - free_mem
-                    telemetry['memory'] = round((used_mem / physmem) * 100, 2) if physmem > 0 else 0
+                    return round((used_mem / physmem) * 100, 2) if physmem > 0 else 0
         except Exception as e:
             self.logger.debug(f"Erro ao coletar memória: {e}")
+        return 0.0
+
+    def collect_high_frequency(self) -> Optional[Dict[str, Any]]:
+        """Coleta dados de alta frequência (CPU, memória, throughput)."""
+        telemetry = {
+            'cpu': self._get_cpu_percent(),
+            'memory': self._get_memory_percent(),
+            'wanThroughput': 0.0,
+            'interfaces': {}
+        }
         
         traffic_data = self._get_opnsense_api('diagnostics/traffic/interface')
         if traffic_data and 'interfaces' in traffic_data:
@@ -331,24 +353,138 @@ class Firewall365Agent:
         
         return telemetry
     
-    def send_telemetry(self, telemetry: Dict[str, Any]) -> bool:
-        """Envia telemetria para a plataforma central."""
-        endpoint = self.config.get('firewall365', 'endpoint')
-        token = self.config.get('firewall365', 'bearer_token')
-        firewall_id = self.config.get('firewall365', 'firewall_id')
-        verify_ssl = self.config.getboolean('firewall365', 'verify_ssl', fallback=True)
-        
-        if not token or not firewall_id:
-            self.logger.error("Token ou Firewall ID não configurados")
-            return False
-        
-        url = f"{endpoint}/telemetry"
-        
-        payload = {
-            'firewallId': firewall_id,
-            **telemetry
+    def collect_medium_frequency(self) -> Dict[str, Any]:
+        """Coleta dados de média frequência (interfaces, serviços)."""
+        result = {
+            'interfaces': [],
+            'services': []
         }
         
+        iface_data = self._get_opnsense_api('diagnostics/interface/getInterfaceStatistics')
+        if iface_data and 'statistics' in iface_data:
+            for name, stats in iface_data['statistics'].items():
+                if isinstance(stats, dict):
+                    result['interfaces'].append({
+                        'interfaceName': name,
+                        'description': stats.get('description', ''),
+                        'status': 'up' if stats.get('status') == 'active' else 'down',
+                        'macAddress': stats.get('macaddr', ''),
+                        'ipAddress': stats.get('ipaddr', ''),
+                        'rxBytes': float(stats.get('bytes received', 0)),
+                        'txBytes': float(stats.get('bytes transmitted', 0)),
+                        'rxPackets': float(stats.get('packets received', 0)),
+                        'txPackets': float(stats.get('packets transmitted', 0)),
+                        'rxErrors': float(stats.get('input errors', 0)),
+                        'txErrors': float(stats.get('output errors', 0)),
+                        'linkSpeed': stats.get('media', '')
+                    })
+        
+        if not result['interfaces']:
+            iface_names = self._get_opnsense_api('diagnostics/interface/getInterfaceNames')
+            if iface_names:
+                for name, desc in iface_names.items():
+                    result['interfaces'].append({
+                        'interfaceName': name,
+                        'description': desc if isinstance(desc, str) else str(desc),
+                        'status': 'unknown'
+                    })
+        
+        svc_data = self._get_opnsense_api('core/service/search')
+        if svc_data and 'rows' in svc_data:
+            for svc in svc_data['rows']:
+                if isinstance(svc, dict):
+                    result['services'].append({
+                        'serviceName': svc.get('name', ''),
+                        'serviceDescription': svc.get('description', ''),
+                        'status': svc.get('status', ''),
+                        'isRunning': 'running' if svc.get('running', 0) == 1 else 'stopped'
+                    })
+        
+        return result
+    
+    def collect_low_frequency(self) -> Dict[str, Any]:
+        """Coleta dados de baixa frequência (sistema, disco)."""
+        result = {
+            'uptime': 0,
+            'loadAvg1': 0,
+            'loadAvg5': 0,
+            'loadAvg15': 0,
+            'diskTotal': 0,
+            'diskUsed': 0,
+            'diskPercent': 0,
+            'temperature': None,
+            'firmwareVersion': self._get_opnsense_version()
+        }
+        
+        try:
+            uptime_result = subprocess.run(
+                ['sysctl', '-n', 'kern.boottime'],
+                capture_output=True, text=True, timeout=5
+            )
+            if uptime_result.returncode == 0:
+                import re
+                match = re.search(r'sec = (\d+)', uptime_result.stdout)
+                if match:
+                    boot_time = int(match.group(1))
+                    result['uptime'] = time.time() - boot_time
+        except Exception as e:
+            self.logger.debug(f"Erro ao coletar uptime: {e}")
+        
+        try:
+            load_result = subprocess.run(
+                ['sysctl', '-n', 'vm.loadavg'],
+                capture_output=True, text=True, timeout=5
+            )
+            if load_result.returncode == 0:
+                parts = load_result.stdout.strip().replace('{', '').replace('}', '').split()
+                if len(parts) >= 3:
+                    result['loadAvg1'] = float(parts[0])
+                    result['loadAvg5'] = float(parts[1])
+                    result['loadAvg15'] = float(parts[2])
+        except Exception as e:
+            self.logger.debug(f"Erro ao coletar load average: {e}")
+        
+        try:
+            df_result = subprocess.run(
+                ['df', '-k', '/'],
+                capture_output=True, text=True, timeout=5
+            )
+            if df_result.returncode == 0:
+                lines = df_result.stdout.strip().split('\n')
+                if len(lines) >= 2:
+                    parts = lines[1].split()
+                    if len(parts) >= 5:
+                        total_kb = int(parts[1])
+                        used_kb = int(parts[2])
+                        result['diskTotal'] = total_kb / (1024 * 1024)
+                        result['diskUsed'] = used_kb / (1024 * 1024)
+                        result['diskPercent'] = (used_kb / total_kb * 100) if total_kb > 0 else 0
+        except Exception as e:
+            self.logger.debug(f"Erro ao coletar disco: {e}")
+        
+        try:
+            temp_result = subprocess.run(
+                ['sysctl', '-n', 'dev.cpu.0.temperature'],
+                capture_output=True, text=True, timeout=5
+            )
+            if temp_result.returncode == 0:
+                temp_str = temp_result.stdout.strip().replace('C', '')
+                result['temperature'] = float(temp_str)
+        except Exception:
+            pass
+        
+        return result
+    
+    def _send_to_api(self, endpoint: str, payload: Dict[str, Any]) -> bool:
+        """Envia dados para a API."""
+        api_endpoint = self.config.get('firewall365', 'endpoint')
+        token = self.config.get('firewall365', 'bearer_token')
+        verify_ssl = self.config.getboolean('firewall365', 'verify_ssl', fallback=True)
+        
+        if not token:
+            return False
+        
+        url = f"{api_endpoint}/{endpoint}"
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
@@ -363,35 +499,75 @@ class Firewall365Agent:
                 timeout=30
             )
             
-            if response.status_code == 201:
-                self.logger.debug("Telemetria enviada com sucesso")
+            if response.status_code in [200, 201]:
                 return True
+            elif response.status_code == 403:
+                self.logger.warning("Firewall aguardando aprovação")
+                return False
             elif response.status_code == 401:
                 self.logger.error("Token inválido ou expirado")
                 return False
             else:
-                self.logger.warning(f"Erro ao enviar telemetria: HTTP {response.status_code}")
+                self.logger.warning(f"Erro ao enviar {endpoint}: HTTP {response.status_code}")
                 return False
                 
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Erro de conexão ao enviar telemetria: {e}")
+            self.logger.error(f"Erro de conexão ({endpoint}): {e}")
             return False
     
+    def send_high_frequency(self, data: Dict[str, Any]) -> bool:
+        """Envia telemetria de alta frequência."""
+        firewall_id = self.config.get('firewall365', 'firewall_id')
+        payload = {'firewallId': firewall_id, **data}
+        return self._send_to_api('telemetry', payload)
+    
+    def send_medium_frequency(self, data: Dict[str, Any]) -> bool:
+        """Envia telemetria de média frequência."""
+        firewall_id = self.config.get('firewall365', 'firewall_id')
+        
+        success = True
+        
+        if data.get('interfaces'):
+            payload = {'firewallId': firewall_id, 'interfaces': data['interfaces']}
+            if not self._send_to_api('telemetry/interfaces', payload):
+                success = False
+        
+        if data.get('services'):
+            payload = {'firewallId': firewall_id, 'services': data['services']}
+            if not self._send_to_api('telemetry/services', payload):
+                success = False
+        
+        return success
+    
+    def send_low_frequency(self, data: Dict[str, Any]) -> bool:
+        """Envia telemetria de baixa frequência."""
+        firewall_id = self.config.get('firewall365', 'firewall_id')
+        payload = {'firewallId': firewall_id, **data}
+        return self._send_to_api('telemetry/system', payload)
+    
     def run(self):
-        """Loop principal do agente."""
-        self.logger.info("Iniciando Firewall365 Agent v2.0.0")
+        """Loop principal do agente com coleta em tiers."""
+        self.logger.info("Iniciando Firewall365 Agent v3.0.0")
         
         if not self.auto_register():
             self.logger.warning("Auto-registro falhou. Verifique a conectividade.")
             self.logger.info("O agente continuará tentando registrar a cada intervalo.")
         
-        interval = self.config.getint('agent', 'interval', fallback=60)
-        self.logger.info(f"Intervalo de coleta: {interval} segundos")
+        interval_high = self.config.getint('agent', 'interval_high', fallback=60)
+        interval_medium = self.config.getint('agent', 'interval_medium', fallback=300)
+        interval_low = self.config.getint('agent', 'interval_low', fallback=1800)
+        
+        self.logger.info(f"Intervalos: Alta={interval_high}s, Média={interval_medium}s, Baixa={interval_low}s")
         
         registration_retry = 0
         max_registration_retries = 5
         
+        last_high = 0
+        last_medium = 0
+        last_low = 0
+        
         while self.running:
+            current_time = time.time()
             token = self.config.get('firewall365', 'bearer_token')
             firewall_id = self.config.get('firewall365', 'firewall_id')
             
@@ -404,22 +580,40 @@ class Firewall365Agent:
                         registration_retry += 1
                 else:
                     self.logger.error("Máximo de tentativas de registro atingido.")
-                    self.logger.error("Configure manualmente o bearer_token e firewall_id.")
-            else:
-                telemetry = self.collect_telemetry()
-                if telemetry:
-                    success = self.send_telemetry(telemetry)
+                time.sleep(60)
+                continue
+            
+            if current_time - last_high >= interval_high:
+                data = self.collect_high_frequency()
+                if data:
+                    success = self.send_high_frequency(data)
                     if success:
                         self.logger.info(
-                            f"Telemetria: CPU={telemetry['cpu']}% | "
-                            f"MEM={telemetry['memory']}% | "
-                            f"WAN={telemetry['wanThroughput']}Mbps"
+                            f"[HIGH] CPU={data['cpu']}% | MEM={data['memory']}% | WAN={data['wanThroughput']}Mbps"
                         )
+                last_high = current_time
             
-            for _ in range(interval):
-                if not self.running:
-                    break
-                time.sleep(1)
+            if current_time - last_medium >= interval_medium:
+                data = self.collect_medium_frequency()
+                if data:
+                    success = self.send_medium_frequency(data)
+                    if success:
+                        iface_count = len(data.get('interfaces', []))
+                        svc_count = len(data.get('services', []))
+                        self.logger.info(f"[MEDIUM] Interfaces={iface_count} | Serviços={svc_count}")
+                last_medium = current_time
+            
+            if current_time - last_low >= interval_low:
+                data = self.collect_low_frequency()
+                if data:
+                    success = self.send_low_frequency(data)
+                    if success:
+                        uptime_hours = round(data.get('uptime', 0) / 3600, 1)
+                        disk_pct = round(data.get('diskPercent', 0), 1)
+                        self.logger.info(f"[LOW] Uptime={uptime_hours}h | Disco={disk_pct}%")
+                last_low = current_time
+            
+            time.sleep(1)
         
         self.logger.info("Agente encerrado")
 

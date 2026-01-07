@@ -5,6 +5,10 @@ import {
   firewalls, 
   telemetry, 
   apiTokens,
+  telemetrySystem,
+  telemetryInterfaces,
+  telemetryServices,
+  alerts,
   type User, 
   type InsertUser,
   type Tenant,
@@ -15,6 +19,14 @@ import {
   type InsertTelemetry,
   type ApiToken,
   type InsertApiToken,
+  type TelemetrySystem,
+  type InsertTelemetrySystem,
+  type TelemetryInterfaces,
+  type InsertTelemetryInterfaces,
+  type TelemetryServices,
+  type InsertTelemetryServices,
+  type Alert,
+  type InsertAlert,
 } from "@shared/schema";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 
@@ -39,9 +51,28 @@ export interface IStorage {
   updateFirewall(id: string, data: Partial<InsertFirewall>): Promise<Firewall | undefined>;
   deleteFirewall(id: string): Promise<void>;
 
-  // Telemetry
+  // Telemetry (high frequency - performance)
   getTelemetry(firewallId: string, hours?: number): Promise<Telemetry[]>;
   createTelemetry(data: InsertTelemetry): Promise<Telemetry>;
+
+  // Telemetry System (low frequency)
+  getTelemetrySystem(firewallId: string): Promise<TelemetrySystem | undefined>;
+  createTelemetrySystem(data: InsertTelemetrySystem): Promise<TelemetrySystem>;
+
+  // Telemetry Interfaces (medium frequency)
+  getTelemetryInterfaces(firewallId: string): Promise<TelemetryInterfaces[]>;
+  createTelemetryInterfaces(data: InsertTelemetryInterfaces[]): Promise<TelemetryInterfaces[]>;
+  deleteTelemetryInterfaces(firewallId: string): Promise<void>;
+
+  // Telemetry Services (medium frequency)
+  getTelemetryServices(firewallId: string): Promise<TelemetryServices[]>;
+  createTelemetryServices(data: InsertTelemetryServices[]): Promise<TelemetryServices[]>;
+  deleteTelemetryServices(firewallId: string): Promise<void>;
+
+  // Alerts
+  getAlerts(firewallId: string, limit?: number): Promise<Alert[]>;
+  createAlert(data: InsertAlert): Promise<Alert>;
+  createAlerts(data: InsertAlert[]): Promise<Alert[]>;
 
   // API Tokens
   getApiToken(token: string): Promise<ApiToken | undefined>;
@@ -168,6 +199,81 @@ export class DbStorage implements IStorage {
   async createTelemetry(data: InsertTelemetry): Promise<Telemetry> {
     const result = await db.insert(telemetry).values(data).returning();
     return result[0];
+  }
+
+  // Telemetry System (low frequency)
+  async getTelemetrySystem(firewallId: string): Promise<TelemetrySystem | undefined> {
+    const result = await db
+      .select()
+      .from(telemetrySystem)
+      .where(eq(telemetrySystem.firewallId, firewallId))
+      .orderBy(desc(telemetrySystem.timestamp))
+      .limit(1);
+    return result[0];
+  }
+
+  async createTelemetrySystem(data: InsertTelemetrySystem): Promise<TelemetrySystem> {
+    const result = await db.insert(telemetrySystem).values(data).returning();
+    return result[0];
+  }
+
+  // Telemetry Interfaces (medium frequency)
+  async getTelemetryInterfaces(firewallId: string): Promise<TelemetryInterfaces[]> {
+    return await db
+      .select()
+      .from(telemetryInterfaces)
+      .where(eq(telemetryInterfaces.firewallId, firewallId))
+      .orderBy(desc(telemetryInterfaces.timestamp));
+  }
+
+  async createTelemetryInterfaces(data: InsertTelemetryInterfaces[]): Promise<TelemetryInterfaces[]> {
+    if (data.length === 0) return [];
+    const result = await db.insert(telemetryInterfaces).values(data).returning();
+    return result;
+  }
+
+  async deleteTelemetryInterfaces(firewallId: string): Promise<void> {
+    await db.delete(telemetryInterfaces).where(eq(telemetryInterfaces.firewallId, firewallId));
+  }
+
+  // Telemetry Services (medium frequency)
+  async getTelemetryServices(firewallId: string): Promise<TelemetryServices[]> {
+    return await db
+      .select()
+      .from(telemetryServices)
+      .where(eq(telemetryServices.firewallId, firewallId))
+      .orderBy(desc(telemetryServices.timestamp));
+  }
+
+  async createTelemetryServices(data: InsertTelemetryServices[]): Promise<TelemetryServices[]> {
+    if (data.length === 0) return [];
+    const result = await db.insert(telemetryServices).values(data).returning();
+    return result;
+  }
+
+  async deleteTelemetryServices(firewallId: string): Promise<void> {
+    await db.delete(telemetryServices).where(eq(telemetryServices.firewallId, firewallId));
+  }
+
+  // Alerts
+  async getAlerts(firewallId: string, limit: number = 50): Promise<Alert[]> {
+    return await db
+      .select()
+      .from(alerts)
+      .where(eq(alerts.firewallId, firewallId))
+      .orderBy(desc(alerts.timestamp))
+      .limit(limit);
+  }
+
+  async createAlert(data: InsertAlert): Promise<Alert> {
+    const result = await db.insert(alerts).values(data).returning();
+    return result[0];
+  }
+
+  async createAlerts(data: InsertAlert[]): Promise<Alert[]> {
+    if (data.length === 0) return [];
+    const result = await db.insert(alerts).values(data).returning();
+    return result;
   }
 
   // API Tokens

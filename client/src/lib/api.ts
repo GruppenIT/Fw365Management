@@ -208,6 +208,22 @@ class ApiClient {
   async getTelemetry(firewallId: string, hours: number = 24): Promise<Telemetry[]> {
     return this.request(`/telemetry/${firewallId}?hours=${hours}`);
   }
+
+  async getTelemetrySystem(firewallId: string) {
+    return this.request<any>(`/telemetry/${firewallId}/system`);
+  }
+
+  async getTelemetryInterfaces(firewallId: string) {
+    return this.request<any[]>(`/telemetry/${firewallId}/interfaces`);
+  }
+
+  async getTelemetryServices(firewallId: string) {
+    return this.request<any[]>(`/telemetry/${firewallId}/services`);
+  }
+
+  async getAlerts(firewallId: string, limit: number = 50) {
+    return this.request<any[]>(`/alerts/${firewallId}?limit=${limit}`);
+  }
 }
 
 export const api = new ApiClient();

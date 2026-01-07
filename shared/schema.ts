@@ -82,3 +82,80 @@ export const insertApiTokenSchema = createInsertSchema(apiTokens).omit({ id: tru
 export const selectApiTokenSchema = createSelectSchema(apiTokens);
 export type InsertApiToken = z.infer<typeof insertApiTokenSchema>;
 export type ApiToken = typeof apiTokens.$inferSelect;
+
+// System telemetry (low frequency - every 30-60 min)
+export const telemetrySystem = pgTable("telemetry_system", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firewallId: varchar("firewall_id").notNull().references(() => firewalls.id, { onDelete: "cascade" }),
+  uptime: real("uptime"),
+  loadAvg1: real("load_avg_1"),
+  loadAvg5: real("load_avg_5"),
+  loadAvg15: real("load_avg_15"),
+  diskTotal: real("disk_total"),
+  diskUsed: real("disk_used"),
+  diskPercent: real("disk_percent"),
+  temperature: real("temperature"),
+  firmwareVersion: text("firmware_version"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+export const insertTelemetrySystemSchema = createInsertSchema(telemetrySystem).omit({ id: true, timestamp: true });
+export const selectTelemetrySystemSchema = createSelectSchema(telemetrySystem);
+export type InsertTelemetrySystem = z.infer<typeof insertTelemetrySystemSchema>;
+export type TelemetrySystem = typeof telemetrySystem.$inferSelect;
+
+// Interface telemetry (medium frequency - every 5-10 min)
+export const telemetryInterfaces = pgTable("telemetry_interfaces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firewallId: varchar("firewall_id").notNull().references(() => firewalls.id, { onDelete: "cascade" }),
+  interfaceName: text("interface_name").notNull(),
+  description: text("description"),
+  status: text("status"),
+  macAddress: text("mac_address"),
+  ipAddress: text("ip_address"),
+  rxBytes: real("rx_bytes"),
+  txBytes: real("tx_bytes"),
+  rxPackets: real("rx_packets"),
+  txPackets: real("tx_packets"),
+  rxErrors: real("rx_errors"),
+  txErrors: real("tx_errors"),
+  linkSpeed: text("link_speed"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+export const insertTelemetryInterfacesSchema = createInsertSchema(telemetryInterfaces).omit({ id: true, timestamp: true });
+export const selectTelemetryInterfacesSchema = createSelectSchema(telemetryInterfaces);
+export type InsertTelemetryInterfaces = z.infer<typeof insertTelemetryInterfacesSchema>;
+export type TelemetryInterfaces = typeof telemetryInterfaces.$inferSelect;
+
+// Services telemetry (medium frequency - every 5-10 min)
+export const telemetryServices = pgTable("telemetry_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firewallId: varchar("firewall_id").notNull().references(() => firewalls.id, { onDelete: "cascade" }),
+  serviceName: text("service_name").notNull(),
+  serviceDescription: text("service_description"),
+  status: text("status"),
+  isRunning: text("is_running"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+export const insertTelemetryServicesSchema = createInsertSchema(telemetryServices).omit({ id: true, timestamp: true });
+export const selectTelemetryServicesSchema = createSelectSchema(telemetryServices);
+export type InsertTelemetryServices = z.infer<typeof insertTelemetryServicesSchema>;
+export type TelemetryServices = typeof telemetryServices.$inferSelect;
+
+// Alerts from firewall
+export const alerts = pgTable("alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firewallId: varchar("firewall_id").notNull().references(() => firewalls.id, { onDelete: "cascade" }),
+  severity: text("severity").notNull(),
+  message: text("message").notNull(),
+  source: text("source"),
+  category: text("category"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true, timestamp: true });
+export const selectAlertSchema = createSelectSchema(alerts);
+export type InsertAlert = z.infer<typeof insertAlertSchema>;
+export type Alert = typeof alerts.$inferSelect;
