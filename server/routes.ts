@@ -262,8 +262,12 @@ export async function registerRoutes(
 
       const data = insertTelemetrySchema.parse(req.body);
       
-      // Update firewall last seen
+      // Update firewall last seen (only if not pending)
       if (data.firewallId) {
+        const firewall = await storage.getFirewall(data.firewallId);
+        if (firewall && firewall.status === "pending") {
+          return res.status(403).json({ message: "Firewall pending approval" });
+        }
         await storage.updateFirewall(data.firewallId, {
           lastSeen: new Date(),
           status: "online",
