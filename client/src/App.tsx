@@ -10,10 +10,18 @@ import TenantsPage from "@/pages/tenants";
 import FirewallsPage from "@/pages/firewalls";
 import FirewallDetails from "@/pages/firewall-details";
 import Layout from "@/components/layout";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, useAuthInit } from "@/hooks/use-auth";
 
 function ProtectedRoute({ component: Component, ...rest }: any) {
-  const { user } = useAuth();
+  const { user, isInitialized } = useAuth();
+  
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
   
   if (!user) {
     return <Redirect to="/auth" />;
@@ -27,7 +35,16 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 }
 
 function Router() {
-  const { user } = useAuth();
+  useAuthInit();
+  const { user, isInitialized } = useAuth();
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
 
   return (
     <Switch>
