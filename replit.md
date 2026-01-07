@@ -36,7 +36,7 @@ firewall365/
 ├── agent/                  # Agente Python para OPNSense
 │   └── agent.py
 ├── scripts/                # Scripts de instalação
-│   └── install.sh          # Instalador Ubuntu
+│   └── install.sh          # Instalador Ubuntu 24.04 LTS
 └── docs/                   # Documentação
     └── install_agent.md    # Guia do agente
 ```
@@ -102,8 +102,8 @@ firewall365/
 
 ## Scripts de Deploy
 
-### install.sh (Ubuntu)
-Script completo para instalação em servidor Ubuntu:
+### install.sh (Ubuntu 24.04 LTS)
+Script completo para instalação em servidor Ubuntu 24.04 LTS:
 - Instala Node.js 20, PostgreSQL, Nginx
 - Gera certificado SSL autoassinado (10 anos)
 - Configura Nginx como reverse proxy

@@ -1,10 +1,10 @@
 #!/bin/bash
 
 ###############################################################################
-# Firewall365 - Script de Instalação para Ubuntu 20.04+
+# Firewall365 - Script de Instalação para Ubuntu 24.04 LTS
 # 
 # Este script instala e configura todos os componentes necessários para
-# executar o Firewall365 em um servidor Ubuntu.
+# executar o Firewall365 em um servidor Ubuntu 24.04 LTS (Noble Numbat).
 #
 # Uso: sudo ./install.sh
 ###############################################################################
@@ -59,7 +59,7 @@ print_banner() {
     echo "║      ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝║"
     echo "║                        3 6 5                                 ║"
     echo "║                                                              ║"
-    echo "║          Instalador para Ubuntu 20.04+                       ║"
+    echo "║          Instalador para Ubuntu 24.04 LTS                     ║"
     echo "║                                                              ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
@@ -74,7 +74,16 @@ check_root() {
 
 check_ubuntu() {
     if ! grep -q "Ubuntu" /etc/os-release 2>/dev/null; then
-        log_warn "Este script foi projetado para Ubuntu. Outras distribuições podem ter problemas."
+        log_error "Este script foi projetado para Ubuntu 24.04 LTS. Outras distribuições não são suportadas."
+        exit 1
+    fi
+    
+    # Verificar versão do Ubuntu
+    UBUNTU_VERSION=$(grep VERSION_ID /etc/os-release | cut -d'"' -f2)
+    if [[ "$UBUNTU_VERSION" != "24.04" ]]; then
+        log_warn "Ubuntu $UBUNTU_VERSION detectado. Recomendado: Ubuntu 24.04 LTS"
+    else
+        log_success "Ubuntu 24.04 LTS detectado"
     fi
 }
 
