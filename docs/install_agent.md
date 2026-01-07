@@ -110,56 +110,25 @@ chmod +x /usr/local/bin/firewall365-agent
 
 ### Passo 2.5: Configurar Credenciais do OPNSense
 
-Crie o arquivo de configuração com as credenciais da API local:
+Baixe o arquivo de configuração modelo:
 
 ```bash
-cat > /etc/firewall365/agent.conf << 'EOF'
-[opnsense]
-# URL da API local do OPNSense
-api_url = https://127.0.0.1/api
+# Download do arquivo de configuração
+curl -o /etc/firewall365/agent.conf https://raw.githubusercontent.com/GruppenIT/Fw365Management/refs/heads/main/agent/agent.conf.example
 
-# Credenciais de API do OPNSense (geradas na Seção 1)
-api_key = SUA_API_KEY_AQUI
-api_secret = SEU_API_SECRET_AQUI
-
-# Verificar certificado SSL local (false para self-signed)
-verify_ssl = false
-
-[firewall365]
-# Endpoint da API central
-endpoint = https://opn.gruppen.com.br/api
-
-# Token e ID serão preenchidos automaticamente pelo auto-registro
-bearer_token = 
-firewall_id = 
-
-# Verificar certificado SSL (true para produção)
-verify_ssl = true
-
-[agent]
-# Intervalo de coleta em segundos
-interval = 60
-
-# Nível de log (DEBUG, INFO, WARNING, ERROR)
-log_level = INFO
-
-# Arquivo de log
-log_file = /var/log/firewall365/agent.log
-EOF
+# Definir permissões seguras
+chmod 600 /etc/firewall365/agent.conf
 ```
 
 Edite o arquivo para inserir suas credenciais do OPNSense:
 
 ```bash
 ee /etc/firewall365/agent.conf
-# Substitua SUA_API_KEY_AQUI e SEU_API_SECRET_AQUI
 ```
 
-Defina permissões seguras:
-
-```bash
-chmod 600 /etc/firewall365/agent.conf
-```
+Substitua os valores:
+- `SUA_API_KEY_AQUI` → sua API Key do OPNSense
+- `SEU_API_SECRET_AQUI` → seu API Secret do OPNSense
 
 ---
 

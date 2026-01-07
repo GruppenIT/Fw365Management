@@ -1,0 +1,31 @@
+[opnsense]
+# URL da API local do OPNSense
+api_url = https://127.0.0.1/api
+
+# Credenciais de API do OPNSense (geradas na Seção 1)
+api_key = SUA_API_KEY_AQUI
+api_secret = SEU_API_SECRET_AQUI
+
+# Verificar certificado SSL local (false para self-signed)
+verify_ssl = false
+
+[firewall365]
+# Endpoint da API central
+endpoint = https://opn.gruppen.com.br/api
+
+# Token e ID serão preenchidos automaticamente pelo auto-registro
+bearer_token = 
+firewall_id = 
+
+# Verificar certificado SSL (true para produção)
+verify_ssl = true
+
+[agent]
+# Intervalo de coleta em segundos
+interval = 60
+
+# Nível de log (DEBUG, INFO, WARNING, ERROR)
+log_level = INFO
+
+# Arquivo de log
+log_file = /var/log/firewall365/agent.log
