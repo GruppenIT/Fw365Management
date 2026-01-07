@@ -2,7 +2,16 @@
 
 ## Visão Geral
 
-Este documento descreve o processo de instalação e configuração do agente Firewall365 em dispositivos OPNSense/FreeBSD. O agente é responsável por coletar métricas de telemetria e enviá-las para a plataforma central.
+Este documento descreve o processo de instalação e configuração do agente Firewall365 em dispositivos OPNSense/FreeBSD. O agente v2.0.0 inclui **auto-registro automático** - basta instalar e o firewall aparecerá na console para aprovação.
+
+---
+
+## Fluxo Simplificado
+
+1. **Instale o agente** no OPNSense
+2. **O agente se registra automaticamente** na plataforma
+3. **Aprove o firewall** na console e associe a um tenant
+4. **Pronto!** O agente começa a enviar telemetria
 
 ---
 
@@ -13,15 +22,11 @@ Este documento descreve o processo de instalação e configuração do agente Fi
 - Acesso SSH ao dispositivo com privilégios de root
 - Conectividade HTTPS com `opn.gruppen.com.br`
 
-### Informações Necessárias
-- **API Token** gerado na console do Firewall365
-- **Firewall ID** do dispositivo cadastrado
-
 ---
 
 ## Seção 1: Gerar API Key no OPNSense
 
-Antes de instalar o agente, você precisa criar credenciais de API no OPNSense para que o agente possa coletar dados.
+Antes de instalar o agente, você precisa criar credenciais de API no OPNSense para que o agente possa coletar dados locais.
 
 ### Passo 1.1: Acessar a Interface Web
 
@@ -62,44 +67,15 @@ Antes de instalar o agente, você precisa criar credenciais de API no OPNSense p
 
 ---
 
-## Seção 2: Registrar Firewall na Console
+## Seção 2: Instalação do Agente
 
-### Passo 2.1: Login na Console Firewall365
-
-1. Acesse: `https://opn.gruppen.com.br`
-2. Faça login com suas credenciais
-
-### Passo 2.2: Adicionar Novo Firewall
-
-1. No menu lateral, clique em **Firewalls**
-2. Clique no botão **Adicionar Dispositivo**
-3. Preencha os campos:
-   - **Nome:** Nome amigável (ex: "HQ Primary Firewall")
-   - **Hostname:** Hostname do dispositivo (ex: "fw-hq-01")
-   - **Número de Série:** Número de série único do dispositivo
-   - **Endereço IP:** IP de gerenciamento
-   - **Versão:** Versão do OPNSense instalada
-   - **Tenant:** Selecione o cliente ao qual o firewall pertence
-4. Clique em **Adicionar Firewall**
-5. Anote o **ID do Firewall** gerado (será usado na configuração do agente)
-
-### Passo 2.3: Gerar Token de API
-
-Após criar o firewall, um token de API será gerado automaticamente. Este token será usado pelo agente para autenticar as requisições de telemetria.
-
-> **Nota:** O token pode ser visualizado nas configurações do firewall na console.
-
----
-
-## Seção 3: Instalação do Agente
-
-### Passo 3.1: Conectar via SSH
+### Passo 2.1: Conectar via SSH
 
 ```bash
 ssh root@<ip-do-opnsense>
 ```
 
-### Passo 3.2: Instalar Dependências
+### Passo 2.2: Instalar Dependências
 
 ```bash
 # Atualizar pacotes
@@ -112,7 +88,7 @@ pkg install -y python39 py39-requests py39-pip
 ln -sf /usr/local/bin/python3.9 /usr/local/bin/python3
 ```
 
-### Passo 3.3: Criar Diretórios
+### Passo 2.3: Criar Diretórios
 
 ```bash
 # Criar diretório de configuração
@@ -126,30 +102,20 @@ chmod 700 /etc/firewall365
 chmod 755 /var/log/firewall365
 ```
 
-### Passo 3.4: Baixar o Script do Agente
+### Passo 2.4: Baixar o Script do Agente
 
 ```bash
-# Opção 1: Download direto (quando disponível)
+# Download direto
 curl -o /usr/local/bin/firewall365-agent https://opn.gruppen.com.br/agent/agent.py
 chmod +x /usr/local/bin/firewall365-agent
-
-# Opção 2: Criar manualmente (copie o conteúdo do agent.py)
-ee /usr/local/bin/firewall365-agent
-# (cole o conteúdo do script e salve)
-chmod +x /usr/local/bin/firewall365-agent
 ```
 
-### Passo 3.5: Configurar o Agente
+### Passo 2.5: Configurar Credenciais do OPNSense
 
-Crie o arquivo de configuração:
+Crie o arquivo de configuração com as credenciais da API local:
 
 ```bash
-ee /etc/firewall365/agent.conf
-```
-
-Conteúdo do arquivo:
-
-```ini
+cat > /etc/firewall365/agent.conf << 'EOF'
 [opnsense]
 # URL da API local do OPNSense
 api_url = https://127.0.0.1/api
@@ -163,13 +129,11 @@ verify_ssl = false
 
 [firewall365]
 # Endpoint da API central
-endpoint = https://opn.gruppen.com.br/api/telemetry
+endpoint = https://opn.gruppen.com.br/api
 
-# Token de autenticação (gerado na console)
-bearer_token = SEU_TOKEN_AQUI
-
-# ID do firewall (gerado na console)
-firewall_id = SEU_FIREWALL_ID_AQUI
+# Token e ID serão preenchidos automaticamente pelo auto-registro
+bearer_token = 
+firewall_id = 
 
 # Verificar certificado SSL (true para produção)
 verify_ssl = true
@@ -183,6 +147,14 @@ log_level = INFO
 
 # Arquivo de log
 log_file = /var/log/firewall365/agent.log
+EOF
+```
+
+Edite o arquivo para inserir suas credenciais do OPNSense:
+
+```bash
+ee /etc/firewall365/agent.conf
+# Substitua SUA_API_KEY_AQUI e SEU_API_SECRET_AQUI
 ```
 
 Defina permissões seguras:
@@ -193,17 +165,12 @@ chmod 600 /etc/firewall365/agent.conf
 
 ---
 
-## Seção 4: Configurar Serviço de Inicialização
+## Seção 3: Configurar Serviço de Inicialização
 
-### Passo 4.1: Criar Script RC
+### Passo 3.1: Criar Script RC
 
 ```bash
-ee /usr/local/etc/rc.d/firewall365_agent
-```
-
-Conteúdo:
-
-```sh
+cat > /usr/local/etc/rc.d/firewall365_agent << 'EOF'
 #!/bin/sh
 
 # PROVIDE: firewall365_agent
@@ -248,9 +215,10 @@ firewall365_agent_status() {
 
 load_rc_config $name
 run_rc_command "$1"
+EOF
 ```
 
-### Passo 4.2: Configurar Permissões e Habilitar
+### Passo 3.2: Configurar Permissões e Habilitar
 
 ```bash
 # Tornar executável
@@ -262,6 +230,30 @@ sysrc firewall365_agent_enable=YES
 # Iniciar o serviço
 service firewall365_agent start
 ```
+
+---
+
+## Seção 4: Aprovar Firewall na Console
+
+Após iniciar o agente, ele se registrará automaticamente na plataforma.
+
+### Passo 4.1: Acessar a Console
+
+1. Acesse `https://opn.gruppen.com.br`
+2. Faça login com suas credenciais de administrador
+
+### Passo 4.2: Aprovar o Firewall
+
+1. No menu lateral, clique em **Firewalls**
+2. Na seção **Aguardando Aprovação**, você verá o novo firewall
+3. Clique em **Aprovar**
+4. No diálogo:
+   - Verifique as informações do firewall (hostname, serial, IP)
+   - Opcionalmente, altere o nome do firewall
+   - **Selecione o Tenant** ao qual o firewall pertence
+5. Clique em **Aprovar**
+
+O firewall agora estará ativo e começará a enviar telemetria.
 
 ---
 
@@ -281,16 +273,17 @@ firewall365_agent is running as pid 12345.
 ### Passo 5.2: Verificar Logs
 
 ```bash
-# Ver últimas linhas do log
 tail -f /var/log/firewall365/agent.log
 ```
 
-Saída esperada:
+Saída esperada após aprovação:
 ```
-2024-01-15 10:30:00 [INFO] Firewall365 Agent iniciado
-2024-01-15 10:30:01 [INFO] Coletando métricas...
-2024-01-15 10:30:02 [INFO] CPU: 15%, Memória: 42%, WAN: 125 Mbps
-2024-01-15 10:30:03 [INFO] Telemetria enviada com sucesso
+2024-01-15 10:30:00 [INFO] Iniciando Firewall365 Agent v2.0.0
+2024-01-15 10:30:01 [INFO] Firewall registrado com sucesso!
+2024-01-15 10:30:01 [INFO] Firewall ID: abc123-def456
+2024-01-15 10:30:01 [INFO] Status: pending
+2024-01-15 10:30:01 [INFO] Nota: Firewall is pending approval...
+2024-01-15 10:31:00 [INFO] Telemetria: CPU=15% | MEM=42% | WAN=125Mbps
 ```
 
 ### Passo 5.3: Verificar Conectividade
@@ -300,19 +293,13 @@ Saída esperada:
 curl -k -I https://opn.gruppen.com.br/api/health
 ```
 
-Resposta esperada:
-```
-HTTP/2 200
-content-type: application/json
-```
-
 ### Passo 5.4: Verificar na Console
 
 1. Acesse `https://opn.gruppen.com.br`
 2. Vá para **Firewalls**
 3. Localize seu firewall na lista
 4. Verifique:
-   - Status deve mudar para **Online**
+   - Status deve mostrar **Online**
    - Última atualização deve mostrar "Agora mesmo"
 5. Clique em **Ver Telemetria** para visualizar os gráficos
 
@@ -330,6 +317,17 @@ cat /var/log/firewall365/agent.log
 python3 /usr/local/bin/firewall365-agent
 ```
 
+### Problema: Auto-registro falha
+
+1. Verifique conectividade com a plataforma:
+```bash
+curl -k https://opn.gruppen.com.br/api/health
+```
+
+2. Verifique os logs para mensagens de erro específicas
+
+3. Se o firewall já foi registrado anteriormente, delete-o na console e reinicie o agente
+
 ### Problema: Erro de conexão com API local
 
 ```bash
@@ -339,12 +337,6 @@ curl -k https://127.0.0.1/api/core/firmware/status
 # Verificar credenciais
 curl -k -u "API_KEY:API_SECRET" https://127.0.0.1/api/core/system/status
 ```
-
-### Problema: Erro de autenticação com API central
-
-1. Verifique se o token no arquivo de configuração está correto
-2. Confirme que o firewall está cadastrado na console
-3. Regenere o token se necessário
 
 ### Problema: Certificado SSL inválido
 
@@ -398,5 +390,5 @@ Em caso de problemas:
 
 ---
 
-*Documento atualizado em: Janeiro 2024*
-*Versão do Agente: 1.0.0*
+*Documento atualizado em: Janeiro 2026*
+*Versão do Agente: 2.0.0*

@@ -45,6 +45,9 @@ import {
 export default function FirewallsPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [approveDialog, setApproveDialog] = useState<{ open: boolean; firewall: any | null }>({ open: false, firewall: null });
+  const [approveTenantId, setApproveTenantId] = useState("");
+  const [approveName, setApproveName] = useState("");
   const [newFirewall, setNewFirewall] = useState({
     name: "",
     hostname: "",
@@ -57,6 +60,11 @@ export default function FirewallsPage() {
   const { data: firewalls = [], isLoading } = useQuery({
     queryKey: ["firewalls"],
     queryFn: () => api.getFirewalls(),
+  });
+
+  const { data: pendingFirewalls = [] } = useQuery({
+    queryKey: ["pendingFirewalls"],
+    queryFn: () => api.getPendingFirewalls(),
   });
 
   const { data: tenants = [] } = useQuery({
@@ -81,12 +89,41 @@ export default function FirewallsPage() {
     mutationFn: (id: string) => api.deleteFirewall(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["firewalls"] });
+      queryClient.invalidateQueries({ queryKey: ["pendingFirewalls"] });
       toast.success("Firewall removido com sucesso!");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erro ao remover firewall");
     },
   });
+
+  const approveMutation = useMutation({
+    mutationFn: ({ id, tenantId, name }: { id: string; tenantId: string; name?: string }) => 
+      api.approveFirewall(id, tenantId, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["firewalls"] });
+      queryClient.invalidateQueries({ queryKey: ["pendingFirewalls"] });
+      toast.success("Firewall aprovado com sucesso!");
+      setApproveDialog({ open: false, firewall: null });
+      setApproveTenantId("");
+      setApproveName("");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Erro ao aprovar firewall");
+    },
+  });
+
+  const handleApprove = () => {
+    if (!approveDialog.firewall || !approveTenantId) {
+      toast.error("Selecione um tenant");
+      return;
+    }
+    approveMutation.mutate({ 
+      id: approveDialog.firewall.id, 
+      tenantId: approveTenantId,
+      name: approveName || undefined
+    });
+  };
 
   const handleCreate = () => {
     if (!newFirewall.name || !newFirewall.hostname || !newFirewall.serialNumber) {
@@ -205,7 +242,109 @@ export default function FirewallsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={approveDialog.open} onOpenChange={(open) => setApproveDialog({ open, firewall: open ? approveDialog.firewall : null })}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Aprovar Firewall</DialogTitle>
+              <DialogDescription>
+                Associe este firewall a um tenant para ativá-lo.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm"><strong>Hostname:</strong> {approveDialog.firewall?.hostname}</p>
+                <p className="text-sm"><strong>Serial:</strong> {approveDialog.firewall?.serialNumber}</p>
+                <p className="text-sm"><strong>IP:</strong> {approveDialog.firewall?.ipAddress || "N/A"}</p>
+                <p className="text-sm"><strong>Versão:</strong> {approveDialog.firewall?.version || "N/A"}</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="approve-name">Nome do Firewall</Label>
+                <Input
+                  id="approve-name"
+                  value={approveName}
+                  onChange={(e) => setApproveName(e.target.value)}
+                  placeholder={approveDialog.firewall?.hostname || "Nome amigável"}
+                  data-testid="input-approve-name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="approve-tenant">Tenant *</Label>
+                <Select value={approveTenantId} onValueChange={setApproveTenantId}>
+                  <SelectTrigger data-testid="select-approve-tenant">
+                    <SelectValue placeholder="Selecione um tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map((tenant: any) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setApproveDialog({ open: false, firewall: null })}>
+                Cancelar
+              </Button>
+              <Button onClick={handleApprove} disabled={approveMutation.isPending} data-testid="button-confirm-approve">
+                {approveMutation.isPending ? "Aprovando..." : "Aprovar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+
+      {pendingFirewalls.length > 0 && (
+        <Card className="border-yellow-500/50 bg-yellow-500/5">
+          <CardHeader>
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <Circle className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+              Aguardando Aprovação ({pendingFirewalls.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hostname</TableHead>
+                  <TableHead>Serial</TableHead>
+                  <TableHead>IP</TableHead>
+                  <TableHead>Versão</TableHead>
+                  <TableHead>Detectado em</TableHead>
+                  <TableHead className="text-right">Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingFirewalls.map((fw: any) => (
+                  <TableRow key={fw.id} data-testid={`row-pending-${fw.id}`}>
+                    <TableCell className="font-medium">{fw.hostname}</TableCell>
+                    <TableCell className="font-mono text-xs">{fw.serialNumber}</TableCell>
+                    <TableCell className="font-mono text-xs">{fw.ipAddress || "-"}</TableCell>
+                    <TableCell>{fw.version || "-"}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {new Date(fw.createdAt).toLocaleString("pt-BR")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button 
+                        size="sm" 
+                        onClick={() => {
+                          setApproveDialog({ open: true, firewall: fw });
+                          setApproveName(fw.hostname);
+                        }}
+                        data-testid={`button-approve-${fw.id}`}
+                      >
+                        Aprovar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -247,11 +386,14 @@ export default function FirewallsPage() {
                         <Circle 
                           className={`w-2 h-2 fill-current ${
                             fw.status === 'online' ? 'text-green-500' : 
-                            fw.status === 'offline' ? 'text-red-500' : 'text-yellow-500'
+                            fw.status === 'offline' ? 'text-red-500' : 
+                            fw.status === 'pending' ? 'text-yellow-500' : 'text-orange-500'
                           }`} 
                         />
                         <span className="capitalize text-sm">
-                          {fw.status === 'online' ? 'online' : fw.status === 'offline' ? 'offline' : 'manutenção'}
+                          {fw.status === 'online' ? 'online' : 
+                           fw.status === 'offline' ? 'offline' : 
+                           fw.status === 'pending' ? 'pendente' : 'manutenção'}
                         </span>
                       </div>
                     </TableCell>

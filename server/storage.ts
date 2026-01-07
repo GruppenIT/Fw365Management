@@ -45,7 +45,12 @@ export interface IStorage {
 
   // API Tokens
   getApiToken(token: string): Promise<ApiToken | undefined>;
+  getApiTokensByFirewallId(firewallId: string): Promise<ApiToken[]>;
   createApiToken(data: InsertApiToken): Promise<ApiToken>;
+  updateApiTokensByFirewallId(firewallId: string, data: Partial<InsertApiToken>): Promise<void>;
+
+  // Pending Firewalls
+  getPendingFirewalls(): Promise<Firewall[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -171,9 +176,22 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getApiTokensByFirewallId(firewallId: string): Promise<ApiToken[]> {
+    return await db.select().from(apiTokens).where(eq(apiTokens.firewallId, firewallId));
+  }
+
   async createApiToken(data: InsertApiToken): Promise<ApiToken> {
     const result = await db.insert(apiTokens).values(data).returning();
     return result[0];
+  }
+
+  async updateApiTokensByFirewallId(firewallId: string, data: Partial<InsertApiToken>): Promise<void> {
+    await db.update(apiTokens).set(data).where(eq(apiTokens.firewallId, firewallId));
+  }
+
+  // Pending Firewalls
+  async getPendingFirewalls(): Promise<Firewall[]> {
+    return await db.select().from(firewalls).where(eq(firewalls.status, "pending"));
   }
 }
 

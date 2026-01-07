@@ -186,6 +186,17 @@ class ApiClient {
     });
   }
 
+  async getPendingFirewalls(): Promise<Firewall[]> {
+    return this.request("/firewalls/pending");
+  }
+
+  async approveFirewall(firewallId: string, tenantId: string, name?: string): Promise<{ message: string; firewall: Firewall }> {
+    return this.request(`/firewalls/${firewallId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ tenantId, name }),
+    });
+  }
+
   async generateApiToken(firewallId: string, description?: string) {
     return this.request("/tokens", {
       method: "POST",

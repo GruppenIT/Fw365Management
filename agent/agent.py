@@ -6,8 +6,10 @@ Firewall365 Agent - OPNSense Telemetry Collector
 Este agente coleta métricas de telemetria de dispositivos OPNSense
 e envia para a plataforma central Firewall365.
 
+O agente faz auto-registro automaticamente na primeira execução.
+
 Autor: Firewall365
-Versão: 1.0.0
+Versão: 2.0.0
 Licença: MIT
 """
 
@@ -17,6 +19,8 @@ import time
 import json
 import logging
 import signal
+import socket
+import subprocess
 import configparser
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -29,7 +33,6 @@ except ImportError:
     print("Instale com: pkg install py39-requests")
     sys.exit(1)
 
-# Configurações padrão
 DEFAULT_CONFIG = {
     'opnsense': {
         'api_url': 'https://127.0.0.1/api',
@@ -38,7 +41,7 @@ DEFAULT_CONFIG = {
         'verify_ssl': 'false'
     },
     'firewall365': {
-        'endpoint': 'https://opn.gruppen.com.br/api/telemetry',
+        'endpoint': 'https://opn.gruppen.com.br/api',
         'bearer_token': '',
         'firewall_id': '',
         'verify_ssl': 'true'
@@ -62,7 +65,6 @@ class Firewall365Agent:
         self._setup_logging()
         self.running = True
         
-        # Configurar handlers de sinal
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
         
@@ -70,30 +72,46 @@ class Firewall365Agent:
         """Carrega configuração do arquivo."""
         config = configparser.ConfigParser()
         
-        # Carregar defaults
         for section, options in DEFAULT_CONFIG.items():
             config[section] = options
         
-        # Carregar arquivo de configuração
         if os.path.exists(self.config_path):
             config.read(self.config_path)
         else:
             print(f"AVISO: Arquivo de configuração não encontrado: {self.config_path}")
-            print("Usando configurações padrão. Crie o arquivo de configuração para personalizar.")
+            print("Criando configuração padrão...")
+            self._create_default_config()
+            config.read(self.config_path)
         
         return config
+    
+    def _create_default_config(self):
+        """Cria arquivo de configuração padrão."""
+        config_dir = os.path.dirname(self.config_path)
+        if config_dir and not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+        
+        config = configparser.ConfigParser()
+        for section, options in DEFAULT_CONFIG.items():
+            config[section] = options
+        
+        with open(self.config_path, 'w') as f:
+            config.write(f)
+    
+    def _save_config(self):
+        """Salva configuração atual no arquivo."""
+        with open(self.config_path, 'w') as f:
+            self.config.write(f)
     
     def _setup_logging(self):
         """Configura sistema de logging."""
         log_level = getattr(logging, self.config.get('agent', 'log_level', fallback='INFO'))
         log_file = self.config.get('agent', 'log_file', fallback='/var/log/firewall365/agent.log')
         
-        # Criar diretório de logs se não existir
         log_dir = os.path.dirname(log_file)
         if log_dir and not os.path.exists(log_dir):
             os.makedirs(log_dir, exist_ok=True)
         
-        # Configurar logging
         logging.basicConfig(
             level=log_level,
             format='%(asctime)s [%(levelname)s] %(message)s',
@@ -110,6 +128,125 @@ class Firewall365Agent:
         self.logger.info(f"Sinal {signum} recebido. Encerrando agente...")
         self.running = False
     
+    def _get_system_info(self) -> Dict[str, Any]:
+        """Coleta informações do sistema OPNSense."""
+        info = {
+            'hostname': socket.gethostname(),
+            'serialNumber': self._get_serial_number(),
+            'version': self._get_opnsense_version(),
+            'ipAddress': self._get_primary_ip(),
+        }
+        return info
+    
+    def _get_serial_number(self) -> str:
+        """Obtém número de série do sistema."""
+        try:
+            result = subprocess.run(
+                ['sysctl', '-n', 'kern.hostuuid'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()[:36]
+        except Exception:
+            pass
+        
+        try:
+            result = subprocess.run(
+                ['dmidecode', '-s', 'system-serial-number'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+        
+        return socket.gethostname() + "-" + hex(hash(socket.gethostname()))[-8:]
+    
+    def _get_opnsense_version(self) -> str:
+        """Obtém versão do OPNSense."""
+        try:
+            if os.path.exists('/usr/local/opnsense/version/opnsense'):
+                with open('/usr/local/opnsense/version/opnsense', 'r') as f:
+                    return f.read().strip()
+        except Exception:
+            pass
+        
+        try:
+            result = subprocess.run(
+                ['opnsense-version', '-v'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        
+        return "Unknown"
+    
+    def _get_primary_ip(self) -> str:
+        """Obtém IP primário do sistema."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "0.0.0.0"
+    
+    def auto_register(self) -> bool:
+        """Registra o firewall automaticamente na plataforma."""
+        endpoint = self.config.get('firewall365', 'endpoint')
+        verify_ssl = self.config.getboolean('firewall365', 'verify_ssl', fallback=True)
+        
+        if self.config.get('firewall365', 'bearer_token') and self.config.get('firewall365', 'firewall_id'):
+            self.logger.info("Firewall já registrado. Pulando auto-registro.")
+            return True
+        
+        self.logger.info("Iniciando auto-registro do firewall...")
+        
+        system_info = self._get_system_info()
+        self.logger.info(f"Informações do sistema: {system_info}")
+        
+        register_url = f"{endpoint}/agent/register"
+        
+        try:
+            response = requests.post(
+                register_url,
+                json=system_info,
+                verify=verify_ssl,
+                timeout=30
+            )
+            
+            if response.status_code in [200, 201]:
+                data = response.json()
+                
+                if 'token' in data:
+                    self.config.set('firewall365', 'bearer_token', data['token'])
+                    self.config.set('firewall365', 'firewall_id', data['firewallId'])
+                    self._save_config()
+                    
+                    self.logger.info(f"Firewall registrado com sucesso!")
+                    self.logger.info(f"Firewall ID: {data['firewallId']}")
+                    self.logger.info(f"Status: {data.get('status', 'pending')}")
+                    
+                    if data.get('note'):
+                        self.logger.info(f"Nota: {data['note']}")
+                    
+                    return True
+                elif data.get('hasToken'):
+                    self.logger.warning("Firewall já registrado mas token não está no config local.")
+                    self.logger.warning("Reconfigure manualmente ou delete o firewall na console.")
+                    return False
+            else:
+                self.logger.error(f"Erro no registro: HTTP {response.status_code}")
+                self.logger.error(f"Resposta: {response.text}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Erro de conexão no auto-registro: {e}")
+            return False
+    
     def _get_opnsense_api(self, endpoint: str) -> Optional[Dict[str, Any]]:
         """Faz requisição à API do OPNSense."""
         api_url = self.config.get('opnsense', 'api_url')
@@ -124,182 +261,116 @@ class Firewall365Agent:
                 url,
                 auth=HTTPBasicAuth(api_key, api_secret),
                 verify=verify_ssl,
-                timeout=30
+                timeout=10
             )
-            response.raise_for_status()
-            return response.json()
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                self.logger.warning(f"API OPNSense retornou {response.status_code}: {endpoint}")
+                return None
+                
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Erro ao acessar API OPNSense ({endpoint}): {e}")
             return None
     
-    def _collect_cpu_usage(self) -> float:
-        """Coleta uso de CPU."""
-        # Tenta via API do OPNSense
-        data = self._get_opnsense_api('diagnostics/activity/getActivity')
-        if data and 'headers' in data:
-            # Extrair porcentagem de CPU do header
-            for header in data.get('headers', []):
-                if 'CPU' in str(header):
-                    try:
-                        # Parsear valor de CPU
-                        cpu_str = str(header).split('%')[0].split()[-1]
-                        return float(cpu_str)
-                    except (ValueError, IndexError):
-                        pass
+    def collect_telemetry(self) -> Optional[Dict[str, Any]]:
+        """Coleta dados de telemetria do OPNSense."""
+        telemetry = {
+            'cpu': 0.0,
+            'memory': 0.0,
+            'wanThroughput': 0.0,
+            'interfaces': {}
+        }
         
-        # Fallback: ler de /var/run/dmesg.boot ou sysctl
         try:
-            import subprocess
             result = subprocess.run(
                 ['sysctl', '-n', 'kern.cp_time'],
-                capture_output=True,
-                text=True,
-                timeout=5
+                capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
-                # Calcular uso de CPU baseado em cp_time
-                values = [int(x) for x in result.stdout.strip().split()]
-                if len(values) >= 5:
-                    idle = values[4]
-                    total = sum(values)
-                    if total > 0:
-                        return round((1 - idle / total) * 100, 2)
-        except Exception:
-            pass
+                cpu_times = [int(x) for x in result.stdout.strip().split()]
+                if len(cpu_times) >= 5:
+                    idle = cpu_times[4]
+                    total = sum(cpu_times)
+                    telemetry['cpu'] = round((1 - idle / total) * 100, 2) if total > 0 else 0
+        except Exception as e:
+            self.logger.debug(f"Erro ao coletar CPU: {e}")
         
-        # Valor simulado se não conseguir obter
-        import random
-        return round(random.uniform(5, 40), 2)
-    
-    def _collect_memory_usage(self) -> float:
-        """Coleta uso de memória."""
         try:
-            import subprocess
-            
-            # Obter memória total
-            result_total = subprocess.run(
-                ['sysctl', '-n', 'hw.physmem'],
-                capture_output=True,
-                text=True,
-                timeout=5
+            result = subprocess.run(
+                ['sysctl', '-n', 'hw.physmem', 'vm.stats.vm.v_inactive_count', 
+                 'vm.stats.vm.v_cache_count', 'vm.stats.vm.v_free_count'],
+                capture_output=True, text=True, timeout=5
             )
-            
-            # Obter memória livre
-            result_free = subprocess.run(
-                ['sysctl', '-n', 'vm.stats.vm.v_free_count'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            result_page = subprocess.run(
-                ['sysctl', '-n', 'hw.pagesize'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if all(r.returncode == 0 for r in [result_total, result_free, result_page]):
-                total_mem = int(result_total.stdout.strip())
-                free_pages = int(result_free.stdout.strip())
-                page_size = int(result_page.stdout.strip())
-                free_mem = free_pages * page_size
-                
-                used_mem = total_mem - free_mem
-                return round((used_mem / total_mem) * 100, 2)
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                if len(lines) >= 1:
+                    physmem = int(lines[0])
+                    page_size = 4096
+                    free_pages = sum(int(lines[i]) for i in range(1, len(lines)) if lines[i].isdigit())
+                    free_mem = free_pages * page_size
+                    used_mem = physmem - free_mem
+                    telemetry['memory'] = round((used_mem / physmem) * 100, 2) if physmem > 0 else 0
         except Exception as e:
             self.logger.debug(f"Erro ao coletar memória: {e}")
         
-        # Valor simulado
-        import random
-        return round(random.uniform(30, 70), 2)
-    
-    def _collect_wan_throughput(self) -> float:
-        """Coleta throughput WAN em Mbps."""
-        # Tenta via API do OPNSense
-        data = self._get_opnsense_api('diagnostics/traffic/interface')
-        if data:
-            for iface, stats in data.items():
-                # Procurar interface WAN
-                if 'wan' in iface.lower() or iface.startswith('em0') or iface.startswith('igb0'):
-                    try:
-                        bytes_in = float(stats.get('bytes received', 0))
-                        bytes_out = float(stats.get('bytes transmitted', 0))
-                        # Converter para Mbps (assumindo coleta a cada minuto)
-                        total_mbps = (bytes_in + bytes_out) * 8 / 1000000 / 60
-                        return round(total_mbps, 2)
-                    except (ValueError, TypeError):
-                        pass
-        
-        # Valor simulado
-        import random
-        return round(random.uniform(50, 500), 2)
-    
-    def _collect_interfaces(self) -> list:
-        """Coleta informações das interfaces de rede."""
-        interfaces = []
-        data = self._get_opnsense_api('diagnostics/interface/getInterfaceStatistics')
-        
-        if data and 'statistics' in data:
-            for iface_name, stats in data['statistics'].items():
-                interfaces.append({
-                    'name': iface_name,
-                    'status': 'up' if stats.get('link state', '') == 'up' else 'down',
-                    'bytes_in': stats.get('bytes received', 0),
-                    'bytes_out': stats.get('bytes transmitted', 0),
-                    'packets_in': stats.get('packets received', 0),
-                    'packets_out': stats.get('packets transmitted', 0),
-                })
-        
-        return interfaces
-    
-    def collect_telemetry(self) -> Dict[str, Any]:
-        """Coleta todas as métricas de telemetria."""
-        self.logger.info("Coletando métricas...")
-        
-        telemetry = {
-            'firewallId': self.config.get('firewall365', 'firewall_id'),
-            'cpu': self._collect_cpu_usage(),
-            'memory': self._collect_memory_usage(),
-            'wanThroughput': self._collect_wan_throughput(),
-            'interfaces': self._collect_interfaces(),
-        }
-        
-        self.logger.info(
-            f"CPU: {telemetry['cpu']}%, "
-            f"Memória: {telemetry['memory']}%, "
-            f"WAN: {telemetry['wanThroughput']} Mbps"
-        )
+        traffic_data = self._get_opnsense_api('diagnostics/traffic/interface')
+        if traffic_data and 'interfaces' in traffic_data:
+            total_throughput = 0
+            for iface_name, iface_data in traffic_data.get('interfaces', {}).items():
+                if isinstance(iface_data, dict):
+                    rate_in = iface_data.get('rate_bits_in', 0)
+                    rate_out = iface_data.get('rate_bits_out', 0)
+                    total_throughput += rate_in + rate_out
+                    telemetry['interfaces'][iface_name] = {
+                        'rateIn': rate_in,
+                        'rateOut': rate_out
+                    }
+            telemetry['wanThroughput'] = round(total_throughput / 1_000_000, 2)
         
         return telemetry
     
     def send_telemetry(self, telemetry: Dict[str, Any]) -> bool:
-        """Envia telemetria para a API central."""
+        """Envia telemetria para a plataforma central."""
         endpoint = self.config.get('firewall365', 'endpoint')
-        bearer_token = self.config.get('firewall365', 'bearer_token')
+        token = self.config.get('firewall365', 'bearer_token')
+        firewall_id = self.config.get('firewall365', 'firewall_id')
         verify_ssl = self.config.getboolean('firewall365', 'verify_ssl', fallback=True)
         
+        if not token or not firewall_id:
+            self.logger.error("Token ou Firewall ID não configurados")
+            return False
+        
+        url = f"{endpoint}/telemetry"
+        
+        payload = {
+            'firewallId': firewall_id,
+            **telemetry
+        }
+        
         headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {bearer_token}'
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
         }
         
         try:
             response = requests.post(
-                endpoint,
-                json=telemetry,
+                url,
+                json=payload,
                 headers=headers,
                 verify=verify_ssl,
                 timeout=30
             )
             
-            if response.status_code in [200, 201]:
-                self.logger.info("Telemetria enviada com sucesso")
+            if response.status_code == 201:
+                self.logger.debug("Telemetria enviada com sucesso")
                 return True
+            elif response.status_code == 401:
+                self.logger.error("Token inválido ou expirado")
+                return False
             else:
-                self.logger.error(
-                    f"Erro ao enviar telemetria: {response.status_code} - {response.text}"
-                )
+                self.logger.warning(f"Erro ao enviar telemetria: HTTP {response.status_code}")
                 return False
                 
         except requests.exceptions.RequestException as e:
@@ -308,53 +379,62 @@ class Firewall365Agent:
     
     def run(self):
         """Loop principal do agente."""
-        interval = self.config.getint('agent', 'interval', fallback=60)
+        self.logger.info("Iniciando Firewall365 Agent v2.0.0")
         
-        self.logger.info("=" * 50)
-        self.logger.info("Firewall365 Agent iniciado")
+        if not self.auto_register():
+            self.logger.warning("Auto-registro falhou. Verifique a conectividade.")
+            self.logger.info("O agente continuará tentando registrar a cada intervalo.")
+        
+        interval = self.config.getint('agent', 'interval', fallback=60)
         self.logger.info(f"Intervalo de coleta: {interval} segundos")
-        self.logger.info(f"Firewall ID: {self.config.get('firewall365', 'firewall_id')}")
-        self.logger.info("=" * 50)
+        
+        registration_retry = 0
+        max_registration_retries = 5
         
         while self.running:
-            try:
-                # Coletar telemetria
-                telemetry = self.collect_telemetry()
-                
-                # Enviar para API central
-                self.send_telemetry(telemetry)
-                
-            except Exception as e:
-                self.logger.error(f"Erro durante coleta/envio: {e}")
+            token = self.config.get('firewall365', 'bearer_token')
+            firewall_id = self.config.get('firewall365', 'firewall_id')
             
-            # Aguardar próximo ciclo
+            if not token or not firewall_id:
+                if registration_retry < max_registration_retries:
+                    self.logger.info(f"Tentando registro novamente ({registration_retry + 1}/{max_registration_retries})...")
+                    if self.auto_register():
+                        registration_retry = 0
+                    else:
+                        registration_retry += 1
+                else:
+                    self.logger.error("Máximo de tentativas de registro atingido.")
+                    self.logger.error("Configure manualmente o bearer_token e firewall_id.")
+            else:
+                telemetry = self.collect_telemetry()
+                if telemetry:
+                    success = self.send_telemetry(telemetry)
+                    if success:
+                        self.logger.info(
+                            f"Telemetria: CPU={telemetry['cpu']}% | "
+                            f"MEM={telemetry['memory']}% | "
+                            f"WAN={telemetry['wanThroughput']}Mbps"
+                        )
+            
             for _ in range(interval):
                 if not self.running:
                     break
                 time.sleep(1)
         
-        self.logger.info("Firewall365 Agent encerrado")
+        self.logger.info("Agente encerrado")
 
 
 def main():
     """Função principal."""
-    # Verificar se está rodando como root
-    if os.geteuid() != 0:
-        print("AVISO: Recomendado executar como root para acesso completo às métricas.")
+    if len(sys.argv) > 1 and sys.argv[1] == '--register-only':
+        agent = Firewall365Agent()
+        if agent.auto_register():
+            print("Registro concluído com sucesso!")
+            sys.exit(0)
+        else:
+            print("Falha no registro.")
+            sys.exit(1)
     
-    # Verificar configuração
-    if not os.path.exists(CONFIG_PATH):
-        print(f"ERRO: Arquivo de configuração não encontrado: {CONFIG_PATH}")
-        print("\nCrie o arquivo de configuração com o seguinte conteúdo:")
-        print("-" * 50)
-        for section, options in DEFAULT_CONFIG.items():
-            print(f"\n[{section}]")
-            for key, value in options.items():
-                print(f"{key} = {value}")
-        print("-" * 50)
-        sys.exit(1)
-    
-    # Iniciar agente
     agent = Firewall365Agent()
     agent.run()
 

@@ -336,5 +336,125 @@ export async function registerRoutes(
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // Agent auto-registration endpoint
+  app.post("/api/agent/register", async (req, res) => {
+    try {
+      const { hostname, serialNumber, version, ipAddress, systemInfo } = req.body;
+
+      if (!hostname || !serialNumber) {
+        return res.status(400).json({ message: "hostname and serialNumber are required" });
+      }
+
+      // Check if firewall already exists
+      let firewall = await storage.getFirewallBySerial(serialNumber);
+      
+      if (firewall) {
+        // Update existing firewall info
+        firewall = await storage.updateFirewall(firewall.id, {
+          hostname,
+          version: version || firewall.version,
+          ipAddress: ipAddress || firewall.ipAddress,
+          lastSeen: new Date(),
+          status: firewall.status === "pending" ? "pending" : "online",
+        });
+
+        // Check if token exists
+        const existingTokens = await storage.getApiTokensByFirewallId(firewall!.id);
+        
+        if (existingTokens.length > 0) {
+          return res.json({
+            message: "Firewall already registered",
+            firewallId: firewall!.id,
+            status: firewall!.status,
+            hasToken: true,
+          });
+        }
+      } else {
+        // Create new firewall with pending status
+        firewall = await storage.createFirewall({
+          name: hostname,
+          hostname,
+          serialNumber,
+          version: version || "Unknown",
+          ipAddress: ipAddress || null,
+          status: "pending",
+          tenantId: null,
+        });
+      }
+
+      if (!firewall) {
+        return res.status(500).json({ message: "Failed to create firewall" });
+      }
+
+      // Generate token for this firewall
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString("hex");
+
+      await storage.createApiToken({
+        token,
+        firewallId: firewall.id,
+        tenantId: null,
+        description: `Auto-generated token for ${hostname}`,
+      });
+
+      res.status(201).json({
+        message: "Firewall registered successfully",
+        firewallId: firewall.id,
+        token,
+        status: "pending",
+        note: "Firewall is pending approval. An administrator needs to approve it in the console.",
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get pending firewalls (admin only)
+  app.get("/api/firewalls/pending", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const firewalls = await storage.getPendingFirewalls();
+      res.json(firewalls);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Approve firewall and assign to tenant
+  app.post("/api/firewalls/:id/approve", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { tenantId, name } = req.body;
+
+      if (!tenantId) {
+        return res.status(400).json({ message: "tenantId is required" });
+      }
+
+      // Verify tenant exists
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const firewall = await storage.updateFirewall(req.params.id, {
+        tenantId,
+        status: "online",
+        name: name || undefined,
+      });
+
+      if (!firewall) {
+        return res.status(404).json({ message: "Firewall not found" });
+      }
+
+      // Update token with tenant
+      await storage.updateApiTokensByFirewallId(firewall.id, { tenantId });
+
+      res.json({
+        message: "Firewall approved successfully",
+        firewall,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
