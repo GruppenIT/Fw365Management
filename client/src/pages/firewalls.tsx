@@ -1,10 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { mockFirewalls, mockTenants } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, MoreHorizontal, Circle } from "lucide-react";
 import { Link } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -21,91 +24,271 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function FirewallsPage() {
-  const getTenantName = (id: string) => mockTenants.find(t => t.id === id)?.name || "Unknown";
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newFirewall, setNewFirewall] = useState({
+    name: "",
+    hostname: "",
+    serialNumber: "",
+    ipAddress: "",
+    version: "",
+    tenantId: "",
+  });
+
+  const { data: firewalls = [], isLoading } = useQuery({
+    queryKey: ["firewalls"],
+    queryFn: () => api.getFirewalls(),
+  });
+
+  const { data: tenants = [] } = useQuery({
+    queryKey: ["tenants"],
+    queryFn: () => api.getTenants(),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: typeof newFirewall) => api.createFirewall(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["firewalls"] });
+      toast.success("Firewall adicionado com sucesso!");
+      setIsDialogOpen(false);
+      setNewFirewall({ name: "", hostname: "", serialNumber: "", ipAddress: "", version: "", tenantId: "" });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Erro ao adicionar firewall");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteFirewall(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["firewalls"] });
+      toast.success("Firewall removido com sucesso!");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Erro ao remover firewall");
+    },
+  });
+
+  const handleCreate = () => {
+    if (!newFirewall.name || !newFirewall.hostname || !newFirewall.serialNumber) {
+      toast.error("Preencha os campos obrigatórios");
+      return;
+    }
+    createMutation.mutate(newFirewall);
+  };
+
+  const formatLastSeen = (lastSeen: string | null) => {
+    if (!lastSeen) return "Nunca";
+    const date = new Date(lastSeen);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return "Agora mesmo";
+    if (diffMins < 60) return `${diffMins} min atrás`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h atrás`;
+    return `${Math.floor(diffHours / 24)}d atrás`;
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold font-display text-foreground">Firewalls</h1>
-          <p className="text-muted-foreground mt-2">Monitor connected OPNSense devices.</p>
+          <p className="text-muted-foreground mt-2">Monitore dispositivos OPNSense conectados.</p>
         </div>
-        <Button className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Device
-        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2" data-testid="button-add-firewall">
+              <Plus className="w-4 h-4" />
+              Adicionar Dispositivo
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Novo Firewall</DialogTitle>
+              <DialogDescription>
+                Registre um novo dispositivo OPNSense no sistema.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Nome *</Label>
+                <Input
+                  id="name"
+                  value={newFirewall.name}
+                  onChange={(e) => setNewFirewall({ ...newFirewall, name: e.target.value })}
+                  placeholder="HQ Primary"
+                  data-testid="input-firewall-name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="hostname">Hostname *</Label>
+                <Input
+                  id="hostname"
+                  value={newFirewall.hostname}
+                  onChange={(e) => setNewFirewall({ ...newFirewall, hostname: e.target.value })}
+                  placeholder="fw-hq-01"
+                  data-testid="input-firewall-hostname"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="serial">Número de Série *</Label>
+                <Input
+                  id="serial"
+                  value={newFirewall.serialNumber}
+                  onChange={(e) => setNewFirewall({ ...newFirewall, serialNumber: e.target.value })}
+                  placeholder="OPN-2024-001"
+                  data-testid="input-firewall-serial"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ip">Endereço IP</Label>
+                <Input
+                  id="ip"
+                  value={newFirewall.ipAddress}
+                  onChange={(e) => setNewFirewall({ ...newFirewall, ipAddress: e.target.value })}
+                  placeholder="192.168.1.1"
+                  data-testid="input-firewall-ip"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="version">Versão</Label>
+                <Input
+                  id="version"
+                  value={newFirewall.version}
+                  onChange={(e) => setNewFirewall({ ...newFirewall, version: e.target.value })}
+                  placeholder="24.1.1"
+                  data-testid="input-firewall-version"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="tenant">Tenant</Label>
+                <Select value={newFirewall.tenantId} onValueChange={(value) => setNewFirewall({ ...newFirewall, tenantId: value })}>
+                  <SelectTrigger data-testid="select-firewall-tenant">
+                    <SelectValue placeholder="Selecione um tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map((tenant: any) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleCreate} disabled={createMutation.isPending} data-testid="button-save-firewall">
+                {createMutation.isPending ? "Adicionando..." : "Adicionar Firewall"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="text-base font-medium">Inventory</CardTitle>
+          <CardTitle className="text-base font-medium">Inventário</CardTitle>
           <div className="relative w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search hostname, serial..." className="pl-8" />
+            <Input placeholder="Buscar hostname, serial..." className="pl-8" data-testid="input-search-firewalls" />
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Hostname / Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Tenant</TableHead>
-                <TableHead>IP Address</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead>Last Seen</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockFirewalls.map((fw) => (
-                <TableRow key={fw.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{fw.hostname}</span>
-                      <span className="text-xs text-muted-foreground">{fw.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Circle 
-                        className={`w-2 h-2 fill-current ${
-                          fw.status === 'online' ? 'text-green-500' : 
-                          fw.status === 'offline' ? 'text-red-500' : 'text-yellow-500'
-                        }`} 
-                      />
-                      <span className="capitalize text-sm">{fw.status}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getTenantName(fw.tenantId)}</TableCell>
-                  <TableCell className="font-mono text-xs">{fw.ipAddress}</TableCell>
-                  <TableCell>{fw.version}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{fw.lastSeen}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <Link href={`/firewalls/${fw.id}`}>
-                           <DropdownMenuItem className="cursor-pointer">View Telemetry</DropdownMenuItem>
-                        </Link>
-                        <DropdownMenuItem>Remote Access</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">Remove</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <p className="text-center text-muted-foreground py-8">Carregando...</p>
+          ) : firewalls.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">Nenhum firewall cadastrado ainda.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hostname / Nome</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Endereço IP</TableHead>
+                  <TableHead>Versão</TableHead>
+                  <TableHead>Última Atualização</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {firewalls.map((fw: any) => (
+                  <TableRow key={fw.id} data-testid={`row-firewall-${fw.id}`}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{fw.hostname}</span>
+                        <span className="text-xs text-muted-foreground">{fw.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Circle 
+                          className={`w-2 h-2 fill-current ${
+                            fw.status === 'online' ? 'text-green-500' : 
+                            fw.status === 'offline' ? 'text-red-500' : 'text-yellow-500'
+                          }`} 
+                        />
+                        <span className="capitalize text-sm">
+                          {fw.status === 'online' ? 'online' : fw.status === 'offline' ? 'offline' : 'manutenção'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{fw.tenantName || "Não alocado"}</TableCell>
+                    <TableCell className="font-mono text-xs">{fw.ipAddress || "-"}</TableCell>
+                    <TableCell>{fw.version || "-"}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{formatLastSeen(fw.lastSeen)}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0" data-testid={`button-actions-${fw.id}`}>
+                            <span className="sr-only">Abrir menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                          <Link href={`/firewalls/${fw.id}`}>
+                             <DropdownMenuItem className="cursor-pointer">Ver Telemetria</DropdownMenuItem>
+                          </Link>
+                          <DropdownMenuItem>Acesso Remoto</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => deleteMutation.mutate(fw.id)}
+                            data-testid={`button-delete-${fw.id}`}
+                          >
+                            Remover
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

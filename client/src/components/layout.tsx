@@ -1,10 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-mock-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { 
   LayoutDashboard, 
   Shield, 
   Users, 
-  Settings, 
   LogOut, 
   Menu,
   Activity
@@ -23,7 +22,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Tenants", href: "/tenants", icon: Users },
     { name: "Firewalls", href: "/firewalls", icon: Shield },
-    // { name: "Settings", href: "/settings", icon: Settings },
   ];
 
   const NavContent = () => (
@@ -74,7 +72,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           onClick={() => logout()}
         >
           <LogOut className="w-4 h-4" />
-          Sign Out
+          Sair
         </Button>
       </div>
     </div>
@@ -82,14 +80,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Desktop Sidebar */}
       <div className="hidden md:block w-64 shrink-0">
         <div className="h-full fixed w-64">
           <NavContent />
         </div>
       </div>
 
-      {/* Mobile Sidebar */}
       <div className="md:hidden fixed top-4 left-4 z-50">
         <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
           <SheetTrigger asChild>
@@ -103,7 +99,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Sheet>
       </div>
 
-      {/* Main Content */}
       <main className="flex-1 p-8 md:p-12 overflow-y-auto w-full">
         <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
           {children}

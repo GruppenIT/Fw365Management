@@ -10,12 +10,11 @@ import TenantsPage from "@/pages/tenants";
 import FirewallsPage from "@/pages/firewalls";
 import FirewallDetails from "@/pages/firewall-details";
 import Layout from "@/components/layout";
-import { useAuth } from "@/hooks/use-mock-auth";
+import { useAuth } from "@/hooks/use-auth";
 
 function ProtectedRoute({ component: Component, ...rest }: any) {
   const { user } = useAuth();
   
-  // In a real app we'd check if user is authenticated
   if (!user) {
     return <Redirect to="/auth" />;
   }

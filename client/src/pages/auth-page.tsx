@@ -1,38 +1,47 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { ShieldCheck } from "lucide-react";
-import { useAuth } from "@/hooks/use-mock-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import cyberBg from "@assets/generated_images/abstract_cybernetic_network_background_dark_blue_teal.png";
+import { toast } from "sonner";
+import { useState } from "react";
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email("Email inválido"),
+  password: z.string().min(1, "Senha é obrigatória"),
 });
 
 export default function AuthPage() {
   const { login } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "admin@firewall365.com",
-      password: "password",
+      email: "",
+      password: "",
     },
   });
 
-  const onSubmit = (values: z.infer<typeof loginSchema>) => {
-    login(values.email);
+  const onSubmit = async (values: z.infer<typeof loginSchema>) => {
+    setIsLoading(true);
+    try {
+      await login(values.email, values.password);
+      toast.success("Login realizado com sucesso!");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao fazer login");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background relative overflow-hidden">
-      {/* Background Image with Overlay */}
       <div 
         className="absolute inset-0 z-0 opacity-40"
         style={{
@@ -42,7 +51,6 @@ export default function AuthPage() {
         }}
       />
       
-      {/* Gradient Overlay for better text readability */}
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
 
       <Card className="w-full max-w-md z-10 border-border/50 bg-card/80 backdrop-blur-md shadow-2xl">
@@ -53,7 +61,7 @@ export default function AuthPage() {
           <div className="space-y-2">
             <CardTitle className="text-3xl font-display font-bold tracking-tight">Firewall365</CardTitle>
             <CardDescription>
-              Secure centralized management for your network infrastructure.
+              Gestão segura e centralizada da sua infraestrutura de rede.
             </CardDescription>
           </div>
         </CardHeader>
@@ -67,7 +75,12 @@ export default function AuthPage() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="admin@firewall365.com" {...field} className="bg-background/50 border-input/50 focus:border-primary" />
+                      <Input 
+                        placeholder="admin@firewall365.com" 
+                        {...field} 
+                        className="bg-background/50 border-input/50 focus:border-primary"
+                        data-testid="input-email"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -78,21 +91,33 @@ export default function AuthPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Senha</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="bg-background/50 border-input/50 focus:border-primary" />
+                      <Input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        {...field} 
+                        className="bg-background/50 border-input/50 focus:border-primary"
+                        data-testid="input-password"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full font-semibold" size="lg">
-                Sign In
+              <Button 
+                type="submit" 
+                className="w-full font-semibold" 
+                size="lg" 
+                disabled={isLoading}
+                data-testid="button-login"
+              >
+                {isLoading ? "Entrando..." : "Entrar"}
               </Button>
             </form>
           </Form>
           <div className="mt-4 text-center text-xs text-muted-foreground">
-            <p>Access restricted to authorized personnel only.</p>
+            <p>Acesso restrito a pessoal autorizado.</p>
           </div>
         </CardContent>
       </Card>
