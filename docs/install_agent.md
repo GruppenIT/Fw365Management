@@ -134,55 +134,11 @@ Substitua os valores:
 
 ## Seção 3: Configurar Serviço de Inicialização
 
-### Passo 3.1: Criar Script RC
+### Passo 3.1: Baixar Script RC
 
 ```bash
-cat > /usr/local/etc/rc.d/firewall365_agent << 'EOF'
-#!/bin/sh
-
-# PROVIDE: firewall365_agent
-# REQUIRE: NETWORKING
-# KEYWORD: shutdown
-
-. /etc/rc.subr
-
-name="firewall365_agent"
-rcvar="firewall365_agent_enable"
-command="/usr/local/bin/python3.11"
-command_args="/usr/local/bin/firewall365-agent"
-pidfile="/var/run/${name}.pid"
-
-start_cmd="${name}_start"
-stop_cmd="${name}_stop"
-status_cmd="${name}_status"
-
-firewall365_agent_start() {
-    echo "Starting ${name}..."
-    /usr/sbin/daemon -p ${pidfile} -u root ${command} ${command_args}
-}
-
-firewall365_agent_stop() {
-    if [ -f ${pidfile} ]; then
-        echo "Stopping ${name}..."
-        kill $(cat ${pidfile}) 2>/dev/null
-        rm -f ${pidfile}
-    else
-        echo "${name} is not running."
-    fi
-}
-
-firewall365_agent_status() {
-    if [ -f ${pidfile} ] && kill -0 $(cat ${pidfile}) 2>/dev/null; then
-        echo "${name} is running as pid $(cat ${pidfile})."
-    else
-        echo "${name} is not running."
-        return 1
-    fi
-}
-
-load_rc_config $name
-run_rc_command "$1"
-EOF
+# Download do script de serviço
+curl -o /usr/local/etc/rc.d/firewall365_agent https://raw.githubusercontent.com/GruppenIT/Fw365Management/refs/heads/main/agent/firewall365_agent.rc
 ```
 
 ### Passo 3.2: Configurar Permissões e Habilitar
