@@ -17,8 +17,8 @@ endpoint = https://opn.gruppen.com.br/api
 bearer_token = 
 firewall_id = 
 
-# Verificar certificado SSL (true para produção)
-verify_ssl = true
+# Verificar certificado SSL (false para certificado autoassinado)
+verify_ssl = false
 
 [agent]
 # Intervalo de coleta em segundos
