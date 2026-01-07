@@ -38,7 +38,7 @@ DEFAULT_CONFIG = {
         'verify_ssl': 'false'
     },
     'firewall365': {
-        'endpoint': 'https://app.firewall365.com.br/api/telemetry',
+        'endpoint': 'https://opn.gruppen.com.br/api/telemetry',
         'bearer_token': '',
         'firewall_id': '',
         'verify_ssl': 'true'

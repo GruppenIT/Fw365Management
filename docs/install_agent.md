@@ -11,7 +11,7 @@ Este documento descreve o processo de instalação e configuração do agente Fi
 ### Requisitos do Sistema
 - OPNSense 21.1+ ou FreeBSD 12+
 - Acesso SSH ao dispositivo com privilégios de root
-- Conectividade HTTPS com `app.firewall365.com.br`
+- Conectividade HTTPS com `opn.gruppen.com.br`
 
 ### Informações Necessárias
 - **API Token** gerado na console do Firewall365
@@ -66,7 +66,7 @@ Antes de instalar o agente, você precisa criar credenciais de API no OPNSense p
 
 ### Passo 2.1: Login na Console Firewall365
 
-1. Acesse: `https://app.firewall365.com.br`
+1. Acesse: `https://opn.gruppen.com.br`
 2. Faça login com suas credenciais
 
 ### Passo 2.2: Adicionar Novo Firewall
@@ -130,7 +130,7 @@ chmod 755 /var/log/firewall365
 
 ```bash
 # Opção 1: Download direto (quando disponível)
-curl -o /usr/local/bin/firewall365-agent https://app.firewall365.com.br/agent/agent.py
+curl -o /usr/local/bin/firewall365-agent https://opn.gruppen.com.br/agent/agent.py
 chmod +x /usr/local/bin/firewall365-agent
 
 # Opção 2: Criar manualmente (copie o conteúdo do agent.py)
@@ -163,7 +163,7 @@ verify_ssl = false
 
 [firewall365]
 # Endpoint da API central
-endpoint = https://app.firewall365.com.br/api/telemetry
+endpoint = https://opn.gruppen.com.br/api/telemetry
 
 # Token de autenticação (gerado na console)
 bearer_token = SEU_TOKEN_AQUI
@@ -297,7 +297,7 @@ Saída esperada:
 
 ```bash
 # Testar conexão com a API central
-curl -k -I https://app.firewall365.com.br/api/health
+curl -k -I https://opn.gruppen.com.br/api/health
 ```
 
 Resposta esperada:
@@ -308,7 +308,7 @@ content-type: application/json
 
 ### Passo 5.4: Verificar na Console
 
-1. Acesse `https://app.firewall365.com.br`
+1. Acesse `https://opn.gruppen.com.br`
 2. Vá para **Firewalls**
 3. Localize seu firewall na lista
 4. Verifique:
@@ -365,7 +365,7 @@ verify_ssl = false
 service firewall365_agent stop
 
 # Baixar nova versão
-curl -o /usr/local/bin/firewall365-agent https://app.firewall365.com.br/agent/agent.py
+curl -o /usr/local/bin/firewall365-agent https://opn.gruppen.com.br/agent/agent.py
 
 # Reiniciar
 service firewall365_agent start
@@ -393,7 +393,7 @@ rm -rf /var/log/firewall365
 
 Em caso de problemas:
 - Consulte os logs em `/var/log/firewall365/agent.log`
-- Acesse a documentação completa em `https://app.firewall365.com.br/docs`
+- Acesse a documentação completa em `https://opn.gruppen.com.br/docs`
 - Entre em contato com o suporte técnico
 
 ---

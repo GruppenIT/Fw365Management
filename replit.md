@@ -3,7 +3,7 @@
 ## Visão Geral
 Firewall365 é uma plataforma SaaS multi-tenant para gestão centralizada de dispositivos OPNSense com telemetria em tempo real.
 
-**URL de Produção:** `https://app.firewall365.com.br`
+**URL de Produção:** `https://opn.gruppen.com.br`
 
 ## Arquitetura
 
