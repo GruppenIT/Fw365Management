@@ -73,7 +73,7 @@ export const apiTokens = pgTable("api_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   token: text("token").notNull().unique(),
   tenantId: varchar("tenant_id").references(() => tenants.id),
-  firewallId: varchar("firewall_id").references(() => firewalls.id),
+  firewallId: varchar("firewall_id").references(() => firewalls.id, { onDelete: "cascade" }),
   description: text("description"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
