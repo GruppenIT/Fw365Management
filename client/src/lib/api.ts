@@ -17,6 +17,39 @@ export interface RegisterData {
   role?: string;
 }
 
+export interface Tenant {
+  id: string;
+  name: string;
+  contactEmail: string;
+  status: string;
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface Firewall {
+  id: string;
+  name: string;
+  hostname: string;
+  serialNumber: string;
+  tenantId: string | null;
+  tenantName?: string;
+  status: string;
+  version: string | null;
+  ipAddress: string | null;
+  lastSeen: string | null;
+  createdAt: string;
+}
+
+export interface Telemetry {
+  id: string;
+  firewallId: string;
+  cpu: number;
+  memory: number;
+  wanThroughput: number;
+  interfaces: unknown;
+  timestamp: string;
+}
+
 class ApiClient {
   private token: string | null = null;
 
@@ -44,7 +77,7 @@ class ApiClient {
     };
 
     if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
+      (headers as Record<string, string>)["Authorization"] = `Bearer ${this.token}`;
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -88,66 +121,80 @@ class ApiClient {
   }
 
   // Tenants
-  async getTenants() {
+  async getTenants(): Promise<Tenant[]> {
     return this.request("/tenants");
   }
 
-  async getTenant(id: string) {
+  async getTenant(id: string): Promise<Tenant> {
     return this.request(`/tenants/${id}`);
   }
 
-  async createTenant(data: { name: string; contactEmail: string; status?: string }) {
+  async createTenant(data: { name: string; contactEmail: string; status?: string }): Promise<Tenant> {
     return this.request("/tenants", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async updateTenant(id: string, data: Partial<{ name: string; contactEmail: string; status: string }>) {
+  async updateTenant(id: string, data: Partial<{ name: string; contactEmail: string; status: string }>): Promise<Tenant> {
     return this.request(`/tenants/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
-  async deleteTenant(id: string) {
+  async deleteTenant(id: string): Promise<void> {
     return this.request(`/tenants/${id}`, {
       method: "DELETE",
     });
   }
 
   // Firewalls
-  async getFirewalls(tenantId?: string) {
+  async getFirewalls(tenantId?: string): Promise<Firewall[]> {
     const query = tenantId ? `?tenantId=${tenantId}` : "";
     return this.request(`/firewalls${query}`);
   }
 
-  async getFirewall(id: string) {
+  async getFirewall(id: string): Promise<Firewall> {
     return this.request(`/firewalls/${id}`);
   }
 
-  async createFirewall(data: any) {
+  async createFirewall(data: Partial<Firewall>): Promise<Firewall> {
     return this.request("/firewalls", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async updateFirewall(id: string, data: any) {
+  async updateFirewall(id: string, data: Partial<Firewall>): Promise<Firewall> {
     return this.request(`/firewalls/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
-  async deleteFirewall(id: string) {
+  async deleteFirewall(id: string): Promise<void> {
     return this.request(`/firewalls/${id}`, {
       method: "DELETE",
     });
   }
 
+  async assignFirewallToTenant(firewallId: string, tenantId: string): Promise<Firewall> {
+    return this.request(`/firewalls/${firewallId}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ tenantId }),
+    });
+  }
+
+  async generateApiToken(firewallId: string, description?: string) {
+    return this.request("/tokens", {
+      method: "POST",
+      body: JSON.stringify({ firewallId, description }),
+    });
+  }
+
   // Telemetry
-  async getTelemetry(firewallId: string, hours: number = 24) {
+  async getTelemetry(firewallId: string, hours: number = 24): Promise<Telemetry[]> {
     return this.request(`/telemetry/${firewallId}?hours=${hours}`);
   }
 }

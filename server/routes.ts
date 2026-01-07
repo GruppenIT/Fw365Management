@@ -270,6 +270,67 @@ export async function registerRoutes(
     }
   });
 
+  // Assign firewall to tenant
+  app.post("/api/firewalls/:id/assign", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { tenantId } = req.body;
+      
+      if (!tenantId) {
+        return res.status(400).json({ message: "tenantId is required" });
+      }
+
+      // Verify tenant exists
+      const tenant = await storage.getTenant(tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      const firewall = await storage.updateFirewall(req.params.id, { tenantId });
+      if (!firewall) {
+        return res.status(404).json({ message: "Firewall not found" });
+      }
+
+      res.json(firewall);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Generate API token for agent
+  app.post("/api/tokens", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { firewallId, description } = req.body;
+
+      if (!firewallId) {
+        return res.status(400).json({ message: "firewallId is required" });
+      }
+
+      // Verify firewall exists
+      const firewall = await storage.getFirewall(firewallId);
+      if (!firewall) {
+        return res.status(404).json({ message: "Firewall not found" });
+      }
+
+      // Generate random token
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString("hex");
+
+      const apiToken = await storage.createApiToken({
+        token,
+        firewallId,
+        tenantId: firewall.tenantId,
+        description: description || `Token for ${firewall.name}`,
+      });
+
+      res.status(201).json({
+        ...apiToken,
+        token, // Return plain token only once
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Health check
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
