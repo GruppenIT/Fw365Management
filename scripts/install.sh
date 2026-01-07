@@ -6,9 +6,7 @@
 # Este script instala e configura todos os componentes necessários para
 # executar o Firewall365 em um servidor Ubuntu 24.04 LTS (Noble Numbat).
 #
-# O script deve ser executado na mesma pasta onde está o código fonte.
-#
-# Uso: sudo ./scripts/install.sh
+# Uso: curl -fsSL https://raw.githubusercontent.com/GruppenIT/Fw365Management/main/scripts/install.sh | sudo bash
 ###############################################################################
 
 set -e
@@ -33,9 +31,9 @@ SSL_DIR="/etc/nginx/ssl"
 SSL_CERT="$SSL_DIR/firewall365.crt"
 SSL_KEY="$SSL_DIR/firewall365.key"
 
-# Diretório de onde o script foi executado (código fonte)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
+# Repositório GitHub
+GITHUB_REPO="https://github.com/GruppenIT/Fw365Management.git"
+GITHUB_BRANCH="main"
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -93,20 +91,6 @@ check_ubuntu() {
     fi
 }
 
-check_source_code() {
-    log_info "Verificando código fonte..."
-    
-    if [[ ! -f "$SOURCE_DIR/package.json" ]]; then
-        log_error "Código fonte não encontrado!"
-        log_info "Execute o script a partir da pasta do projeto:"
-        log_info "  cd /caminho/para/firewall365"
-        log_info "  sudo ./scripts/install.sh"
-        exit 1
-    fi
-    
-    log_success "Código fonte encontrado em $SOURCE_DIR"
-}
-
 install_prerequisites() {
     log_info "Atualizando sistema e instalando pré-requisitos..."
     
@@ -127,6 +111,21 @@ install_prerequisites() {
         ufw
     
     log_success "Pré-requisitos instalados"
+}
+
+clone_repository() {
+    log_info "Baixando código fonte do GitHub..."
+    
+    # Remover diretório anterior se existir
+    if [[ -d "$APP_DIR" ]]; then
+        log_info "Removendo instalação anterior..."
+        rm -rf "$APP_DIR"
+    fi
+    
+    # Clonar repositório
+    git clone --depth 1 --branch "$GITHUB_BRANCH" "$GITHUB_REPO" "$APP_DIR"
+    
+    log_success "Código fonte baixado para $APP_DIR"
 }
 
 install_nodejs() {
@@ -305,21 +304,15 @@ create_app_user() {
     if id "$APP_USER" &>/dev/null; then
         log_success "Usuário $APP_USER já existe"
     else
-        useradd -r -m -d $APP_DIR -s /bin/bash $APP_USER
+        useradd -r -m -d /home/$APP_USER -s /bin/bash $APP_USER
         log_success "Usuário $APP_USER criado"
     fi
 }
 
-setup_application() {
-    log_info "Copiando código fonte para $APP_DIR..."
-    
-    mkdir -p $APP_DIR
-    
-    # Copiar código fonte
-    cp -r "$SOURCE_DIR"/* $APP_DIR/
+setup_environment() {
+    log_info "Configurando variáveis de ambiente..."
     
     # Criar arquivo .env
-    log_info "Criando arquivo de configuração..."
     cat > $APP_DIR/.env << EOF
 # Firewall365 Environment Configuration
 NODE_ENV=production
@@ -338,7 +331,7 @@ EOF
     chmod 600 $APP_DIR/.env
     chown -R $APP_USER:$APP_USER $APP_DIR
     
-    log_success "Código fonte copiado"
+    log_success "Variáveis de ambiente configuradas"
 }
 
 build_application() {
@@ -363,6 +356,9 @@ setup_database() {
     log_info "Configurando schema do banco de dados..."
     
     cd $APP_DIR
+    
+    # Exportar DATABASE_URL para o comando
+    export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:5432/$DB_NAME"
     
     # Aplicar migrations/schema
     sudo -u $APP_USER -E npm run db:push 2>&1 | tail -5
@@ -497,19 +493,19 @@ main() {
     print_banner
     check_root
     check_ubuntu
-    check_source_code
     
     log_info "Iniciando instalação completa do Firewall365..."
     echo ""
     
     install_prerequisites
+    clone_repository
     install_nodejs
     install_postgresql
     install_nginx
     generate_ssl_certificate
     configure_nginx
     create_app_user
-    setup_application
+    setup_environment
     build_application
     setup_database
     create_systemd_service
