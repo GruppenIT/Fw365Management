@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, MoreHorizontal, Circle, Eye } from "lucide-react";
+import { Search, MoreHorizontal, Circle, Eye } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -31,7 +31,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -44,18 +43,9 @@ import {
 
 export default function FirewallsPage() {
   const queryClient = useQueryClient();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [approveDialog, setApproveDialog] = useState<{ open: boolean; firewall: any | null }>({ open: false, firewall: null });
   const [approveTenantId, setApproveTenantId] = useState("");
   const [approveName, setApproveName] = useState("");
-  const [newFirewall, setNewFirewall] = useState({
-    name: "",
-    hostname: "",
-    serialNumber: "",
-    ipAddress: "",
-    version: "",
-    tenantId: "",
-  });
 
   const { data: firewalls = [], isLoading } = useQuery({
     queryKey: ["firewalls"],
@@ -70,19 +60,6 @@ export default function FirewallsPage() {
   const { data: tenants = [] } = useQuery({
     queryKey: ["tenants"],
     queryFn: () => api.getTenants(),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: typeof newFirewall) => api.createFirewall(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["firewalls"] });
-      toast.success("Firewall adicionado com sucesso!");
-      setIsDialogOpen(false);
-      setNewFirewall({ name: "", hostname: "", serialNumber: "", ipAddress: "", version: "", tenantId: "" });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Erro ao adicionar firewall");
-    },
   });
 
   const deleteMutation = useMutation({
@@ -125,14 +102,6 @@ export default function FirewallsPage() {
     });
   };
 
-  const handleCreate = () => {
-    if (!newFirewall.name || !newFirewall.hostname || !newFirewall.serialNumber) {
-      toast.error("Preencha os campos obrigatórios");
-      return;
-    }
-    createMutation.mutate(newFirewall);
-  };
-
   const formatLastSeen = (lastSeen: string | null) => {
     if (!lastSeen) return "Nunca";
     const date = new Date(lastSeen);
@@ -154,95 +123,6 @@ export default function FirewallsPage() {
           <h1 className="text-3xl font-bold font-display text-foreground">Firewalls</h1>
           <p className="text-muted-foreground mt-2">Monitore dispositivos OPNSense conectados.</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" data-testid="button-add-firewall">
-              <Plus className="w-4 h-4" />
-              Adicionar Dispositivo
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar Novo Firewall</DialogTitle>
-              <DialogDescription>
-                Registre um novo dispositivo OPNSense no sistema.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Nome *</Label>
-                <Input
-                  id="name"
-                  value={newFirewall.name}
-                  onChange={(e) => setNewFirewall({ ...newFirewall, name: e.target.value })}
-                  placeholder="HQ Primary"
-                  data-testid="input-firewall-name"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="hostname">Hostname *</Label>
-                <Input
-                  id="hostname"
-                  value={newFirewall.hostname}
-                  onChange={(e) => setNewFirewall({ ...newFirewall, hostname: e.target.value })}
-                  placeholder="fw-hq-01"
-                  data-testid="input-firewall-hostname"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="serial">Número de Série *</Label>
-                <Input
-                  id="serial"
-                  value={newFirewall.serialNumber}
-                  onChange={(e) => setNewFirewall({ ...newFirewall, serialNumber: e.target.value })}
-                  placeholder="OPN-2024-001"
-                  data-testid="input-firewall-serial"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="ip">Endereço IP</Label>
-                <Input
-                  id="ip"
-                  value={newFirewall.ipAddress}
-                  onChange={(e) => setNewFirewall({ ...newFirewall, ipAddress: e.target.value })}
-                  placeholder="192.168.1.1"
-                  data-testid="input-firewall-ip"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="version">Versão</Label>
-                <Input
-                  id="version"
-                  value={newFirewall.version}
-                  onChange={(e) => setNewFirewall({ ...newFirewall, version: e.target.value })}
-                  placeholder="24.1.1"
-                  data-testid="input-firewall-version"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="tenant">Tenant</Label>
-                <Select value={newFirewall.tenantId} onValueChange={(value) => setNewFirewall({ ...newFirewall, tenantId: value })}>
-                  <SelectTrigger data-testid="select-firewall-tenant">
-                    <SelectValue placeholder="Selecione um tenant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants.map((tenant: any) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreate} disabled={createMutation.isPending} data-testid="button-save-firewall">
-                {createMutation.isPending ? "Adicionando..." : "Adicionar Firewall"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         <Dialog open={approveDialog.open} onOpenChange={(open) => setApproveDialog({ open, firewall: open ? approveDialog.firewall : null })}>
           <DialogContent>
             <DialogHeader>
