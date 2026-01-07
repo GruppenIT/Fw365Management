@@ -1,0 +1,61 @@
+root@OPNsense:~ # service firewall365_agent restart
+Stopping firewall365_agent...
+2026-01-07 21:46:01 [INFO] Sinal 15 recebido. Encerrando agente...
+Starting firewall365_agent...
+root@OPNsense:~ # 2026-01-07 21:46:01 [INFO] Iniciando Firewall365 Agent v2.0.0
+2026-01-07 21:46:01 [INFO] Iniciando auto-registro do firewall...
+2026-01-07 21:46:01 [INFO] Informações do sistema: {'hostname': 'OPNsense.internal', 'serialNumber': '46783642-7239-a553-5990-dd228fb55103', 'version': '25.7.10', 'ipAddress': '192.168.100.156'}
+/usr/local/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'opn.gruppen.com.br'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+2026-01-07 21:46:01 [ERROR] Erro de conexão no auto-registro: Expecting value: line 1 column 1 (char 0)
+2026-01-07 21:46:01 [WARNING] Auto-registro falhou. Verifique a conectividade.
+2026-01-07 21:46:01 [INFO] O agente continuará tentando registrar a cada intervalo.
+2026-01-07 21:46:01 [INFO] Intervalo de coleta: 60 segundos
+2026-01-07 21:46:01 [INFO] Tentando registro novamente (1/5)...
+2026-01-07 21:46:01 [INFO] Iniciando auto-registro do firewall...
+2026-01-07 21:46:01 [INFO] Informações do sistema: {'hostname': 'OPNsense.internal', 'serialNumber': '46783642-7239-a553-5990-dd228fb55103', 'version': '25.7.10', 'ipAddress': '192.168.100.156'}
+/usr/local/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'opn.gruppen.com.br'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+2026-01-07 21:46:01 [ERROR] Erro de conexão no auto-registro: Expecting value: line 1 column 1 (char 0)
+2026-01-07 21:46:02 [INFO] Agente encerrado
+
+root@OPNsense:~ # tail -f /var/log/firewall365/agent.log
+2026-01-07 21:46:01 [INFO] Informações do sistema: {'hostname': 'OPNsense.internal', 'serialNumber': '46783642-7239-a553-5990-dd228fb55103', 'version': '25.7.10', 'ipAddress': '192.168.100.156'}
+2026-01-07 21:46:01 [ERROR] Erro de conexão no auto-registro: Expecting value: line 1 column 1 (char 0)
+2026-01-07 21:46:01 [WARNING] Auto-registro falhou. Verifique a conectividade.
+2026-01-07 21:46:01 [INFO] O agente continuará tentando registrar a cada intervalo.
+2026-01-07 21:46:01 [INFO] Intervalo de coleta: 60 segundos
+2026-01-07 21:46:01 [INFO] Tentando registro novamente (1/5)...
+2026-01-07 21:46:01 [INFO] Iniciando auto-registro do firewall...
+2026-01-07 21:46:01 [INFO] Informações do sistema: {'hostname': 'OPNsense.internal', 'serialNumber': '46783642-7239-a553-5990-dd228fb55103', 'version': '25.7.10', 'ipAddress': '192.168.100.156'}
+2026-01-07 21:46:01 [ERROR] Erro de conexão no auto-registro: Expecting value: line 1 column 1 (char 0)
+2026-01-07 21:46:02 [INFO] Agente encerrado
+^C
+root@OPNsense:~ # curl -k -X POST https://opn.gruppen.com.br/api/agent/register \
+?   -H "Content-Type: application/json" \
+?   -d '{"hostname":"test","serialNumber":"test-123","version":"25.7","ipAddress":"1.2.3.4"}'
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+
+    <meta property="og:title" content="Firewall365 - Gestão Centralizada de Segurança" />
+    <meta property="og:description" content="Gestão centralizada de dispositivos OPNSense com telemetria em tempo real." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/attached_assets/generated_images/network_bg.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Firewall365" />
+    <meta name="twitter:description" content="Gestão centralizada de dispositivos OPNSense com telemetria em tempo real." />
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-CyJozKTP.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-4T9PGzQU.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>root@OPNsense:~ #
