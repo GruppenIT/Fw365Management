@@ -36,7 +36,7 @@ Antes de instalar o agente, você precisa criar credenciais de API no OPNSense p
    - **Username:** `firewall365_agent`
    - **Password:** (gere uma senha forte)
    - **Full Name:** Firewall365 Agent
-   - **Login shell:** `/usr/sbin/nologin`
+   - **Login shell:** `Default (none for all but root)` - Este usuário é apenas para API, não precisa de shell
 4. Marque a opção **Generate a scrambled password** (recomendado)
 5. Clique em **Save**
 
