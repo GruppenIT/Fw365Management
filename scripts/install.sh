@@ -1,12 +1,14 @@
 #!/bin/bash
 
 ###############################################################################
-# Firewall365 - Script de Instalação para Ubuntu 24.04 LTS
+# Firewall365 - Script de Instalação Completa para Ubuntu 24.04 LTS
 # 
 # Este script instala e configura todos os componentes necessários para
 # executar o Firewall365 em um servidor Ubuntu 24.04 LTS (Noble Numbat).
 #
-# Uso: sudo ./install.sh
+# O script deve ser executado na mesma pasta onde está o código fonte.
+#
+# Uso: sudo ./scripts/install.sh
 ###############################################################################
 
 set -e
@@ -30,6 +32,10 @@ JWT_SECRET=$(openssl rand -base64 64 | tr -dc 'a-zA-Z0-9' | head -c 48)
 SSL_DIR="/etc/nginx/ssl"
 SSL_CERT="$SSL_DIR/firewall365.crt"
 SSL_KEY="$SSL_DIR/firewall365.key"
+
+# Diretório de onde o script foi executado (código fonte)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -59,7 +65,7 @@ print_banner() {
     echo "║      ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝║"
     echo "║                        3 6 5                                 ║"
     echo "║                                                              ║"
-    echo "║          Instalador para Ubuntu 24.04 LTS                     ║"
+    echo "║          Instalador para Ubuntu 24.04 LTS                    ║"
     echo "║                                                              ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
@@ -85,6 +91,20 @@ check_ubuntu() {
     else
         log_success "Ubuntu 24.04 LTS detectado"
     fi
+}
+
+check_source_code() {
+    log_info "Verificando código fonte..."
+    
+    if [[ ! -f "$SOURCE_DIR/package.json" ]]; then
+        log_error "Código fonte não encontrado!"
+        log_info "Execute o script a partir da pasta do projeto:"
+        log_info "  cd /caminho/para/firewall365"
+        log_info "  sudo ./scripts/install.sh"
+        exit 1
+    fi
+    
+    log_success "Código fonte encontrado em $SOURCE_DIR"
 }
 
 install_prerequisites() {
@@ -145,6 +165,7 @@ install_postgresql() {
     sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || true
     sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;" 2>/dev/null || true
     sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;" 2>/dev/null || true
+    sudo -u postgres psql -c "ALTER USER $DB_USER CREATEDB;" 2>/dev/null || true
     
     log_success "PostgreSQL configurado"
 }
@@ -290,18 +311,15 @@ create_app_user() {
 }
 
 setup_application() {
-    log_info "Configurando aplicação..."
+    log_info "Copiando código fonte para $APP_DIR..."
     
     mkdir -p $APP_DIR
     
-    # Se existir repositório git, clonar. Senão, copiar arquivos locais.
-    if [[ -d "/tmp/firewall365-source" ]]; then
-        cp -r /tmp/firewall365-source/* $APP_DIR/
-    else
-        log_warn "Código fonte não encontrado. Clone manualmente para $APP_DIR"
-    fi
+    # Copiar código fonte
+    cp -r "$SOURCE_DIR"/* $APP_DIR/
     
     # Criar arquivo .env
+    log_info "Criando arquivo de configuração..."
     cat > $APP_DIR/.env << EOF
 # Firewall365 Environment Configuration
 NODE_ENV=production
@@ -320,14 +338,36 @@ EOF
     chmod 600 $APP_DIR/.env
     chown -R $APP_USER:$APP_USER $APP_DIR
     
-    # Instalar dependências
-    if [[ -f "$APP_DIR/package.json" ]]; then
-        cd $APP_DIR
-        sudo -u $APP_USER npm install --production
-        sudo -u $APP_USER npm run build 2>/dev/null || true
-    fi
+    log_success "Código fonte copiado"
+}
+
+build_application() {
+    log_info "Instalando dependências (isso pode demorar alguns minutos)..."
     
-    log_success "Aplicação configurada"
+    cd $APP_DIR
+    
+    # Instalar dependências
+    sudo -u $APP_USER npm install 2>&1 | tail -5
+    
+    log_success "Dependências instaladas"
+    
+    log_info "Fazendo build da aplicação..."
+    
+    # Build da aplicação
+    sudo -u $APP_USER npm run build 2>&1 | tail -5
+    
+    log_success "Build concluído"
+}
+
+setup_database() {
+    log_info "Configurando schema do banco de dados..."
+    
+    cd $APP_DIR
+    
+    # Aplicar migrations/schema
+    sudo -u $APP_USER -E npm run db:push 2>&1 | tail -5
+    
+    log_success "Schema do banco aplicado"
 }
 
 create_systemd_service() {
@@ -336,7 +376,7 @@ create_systemd_service() {
     cat > /etc/systemd/system/firewall365.service << EOF
 [Unit]
 Description=Firewall365 - OPNSense Management Platform
-Documentation=https://github.com/firewall365/firewall365
+Documentation=https://opn.gruppen.com.br
 After=network.target postgresql.service
 
 [Service]
@@ -369,6 +409,31 @@ EOF
     log_success "Serviço systemd criado"
 }
 
+start_application() {
+    log_info "Iniciando aplicação..."
+    
+    systemctl start firewall365
+    
+    # Aguardar inicialização
+    sleep 5
+    
+    if systemctl is-active --quiet firewall365; then
+        log_success "Aplicação iniciada com sucesso"
+    else
+        log_error "Falha ao iniciar a aplicação"
+        log_info "Verifique os logs: sudo journalctl -u firewall365 -n 50"
+        exit 1
+    fi
+    
+    # Verificar health check
+    sleep 2
+    if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/api/health 2>/dev/null | grep -q "200"; then
+        log_success "API respondendo corretamente"
+    else
+        log_warn "API pode estar ainda iniciando..."
+    fi
+}
+
 configure_firewall() {
     log_info "Configurando firewall (UFW)..."
     
@@ -389,10 +454,11 @@ print_summary() {
     echo "║              INSTALAÇÃO CONCLUÍDA COM SUCESSO!               ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
-    echo -e "${GREEN}Informações de Acesso:${NC}"
+    echo -e "${GREEN}Acesso à Aplicação:${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "  URL:              ${BLUE}https://$APP_DOMAIN${NC}"
-    echo -e "  Diretório App:    ${BLUE}$APP_DIR${NC}"
+    echo -e "  Login:            ${YELLOW}admin@firewall365.com${NC}"
+    echo -e "  Senha:            ${YELLOW}admin123${NC}"
     echo ""
     echo -e "${GREEN}Banco de Dados:${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -411,17 +477,15 @@ print_summary() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "  Iniciar:          ${BLUE}sudo systemctl start firewall365${NC}"
     echo -e "  Parar:            ${BLUE}sudo systemctl stop firewall365${NC}"
+    echo -e "  Reiniciar:        ${BLUE}sudo systemctl restart firewall365${NC}"
     echo -e "  Status:           ${BLUE}sudo systemctl status firewall365${NC}"
     echo -e "  Logs:             ${BLUE}sudo journalctl -u firewall365 -f${NC}"
     echo ""
     echo -e "${YELLOW}IMPORTANTE:${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  1. Configure o DNS de $APP_DOMAIN para este servidor"
-    echo "  2. Copie o código da aplicação para $APP_DIR"
-    echo "  3. Execute: cd $APP_DIR && npm install && npm run build"
-    echo "  4. Inicie: sudo systemctl start firewall365"
-    echo ""
-    echo "  Guarde as credenciais do banco de dados em local seguro!"
+    echo "  2. Altere a senha padrão após o primeiro login"
+    echo "  3. Guarde as credenciais do banco de dados em local seguro!"
     echo ""
 }
 
@@ -433,8 +497,9 @@ main() {
     print_banner
     check_root
     check_ubuntu
+    check_source_code
     
-    log_info "Iniciando instalação do Firewall365..."
+    log_info "Iniciando instalação completa do Firewall365..."
     echo ""
     
     install_prerequisites
@@ -445,8 +510,11 @@ main() {
     configure_nginx
     create_app_user
     setup_application
+    build_application
+    setup_database
     create_systemd_service
     configure_firewall
+    start_application
     
     print_summary
 }
