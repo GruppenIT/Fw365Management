@@ -226,9 +226,10 @@ class ApiClient {
   }
 
   // SSH Session
-  async createSshSession(firewallId: string): Promise<{ sessionToken: string; expiresIn: number }> {
+  async createSshSession(firewallId: string, username: string, password: string): Promise<{ sessionToken: string; expiresIn: number }> {
     return this.request(`/firewalls/${firewallId}/ssh-session`, {
       method: "POST",
+      body: JSON.stringify({ username, password }),
     });
   }
 }

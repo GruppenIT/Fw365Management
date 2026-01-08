@@ -19,6 +19,8 @@ interface TerminalConnection {
 interface WsSessionToken {
   userId: string;
   firewallId: string;
+  username: string;
+  password: string;
   expiresAt: number;
 }
 
@@ -26,11 +28,13 @@ const agentConnections = new Map<string, AgentConnection>();
 const terminalConnections = new Map<string, TerminalConnection>();
 const wsSessionTokens = new Map<string, WsSessionToken>();
 
-export function createWsSessionToken(userId: string, firewallId: string): string {
+export function createWsSessionToken(userId: string, firewallId: string, username: string, password: string): string {
   const token = crypto.randomBytes(32).toString("hex");
   wsSessionTokens.set(token, {
     userId,
     firewallId,
+    username,
+    password,
     expiresAt: Date.now() + 60000,
   });
   
@@ -139,6 +143,8 @@ async function handleTerminalConnection(
 
   const userId = session.userId;
   const validFirewallId = session.firewallId;
+  const sshUsername = session.username;
+  const sshPassword = session.password;
 
   if (firewallId && firewallId !== validFirewallId) {
     ws.close(1008, "Firewall ID mismatch");
@@ -174,16 +180,17 @@ async function handleTerminalConnection(
   agentConn.ws.send(JSON.stringify({
     type: "ssh_open",
     sessionId,
-    host: "127.0.0.1",
-    port: 22,
+    username: sshUsername,
+    password: sshPassword,
   }));
 
   ws.on("message", (data) => {
     if (agentConn.ws.readyState === WebSocket.OPEN) {
+      const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
       agentConn.ws.send(JSON.stringify({
         type: "ssh_data",
         sessionId,
-        data: data.toString("base64"),
+        data: buffer.toString("base64"),
       }));
     }
   });

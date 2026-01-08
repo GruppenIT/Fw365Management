@@ -3,6 +3,9 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface SSHTerminalProps {
   firewallId: string;
@@ -15,10 +18,32 @@ export function SSHTerminal({ firewallId, onClose, onError }: SSHTerminalProps) 
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [status, setStatus] = useState<"init" | "connecting" | "connected" | "error" | "closed">("init");
+  const [status, setStatus] = useState<"login" | "connecting" | "connected" | "error" | "closed">("login");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [username, setUsername] = useState("root");
+  const [password, setPassword] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  useEffect(() => {
+  const handleConnect = async () => {
+    if (!username || !password) return;
+    
+    setIsConnecting(true);
+    setStatus("connecting");
+    
+    try {
+      const { sessionToken } = await api.createSshSession(firewallId, username, password);
+      initTerminal(sessionToken);
+    } catch (error: any) {
+      setStatus("error");
+      const msg = error.message || "Falha ao criar sessao";
+      setErrorMessage(msg);
+      onError?.(msg);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const initTerminal = (sessionToken: string) => {
     if (!terminalRef.current) return;
 
     const term = new Terminal({
@@ -58,78 +83,60 @@ export function SSHTerminal({ firewallId, onClose, onError }: SSHTerminalProps) 
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    term.writeln("\x1b[33mObtendo sessao...\x1b[0m");
+    term.writeln("\x1b[33mConectando ao firewall...\x1b[0m");
 
-    const initConnection = async () => {
-      try {
-        const { sessionToken } = await api.createSshSession(firewallId);
-        
-        setStatus("connecting");
-        term.writeln("\x1b[33mConectando ao firewall...\x1b[0m");
+    const sessionId = crypto.randomUUID();
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws?type=terminal&token=${encodeURIComponent(sessionToken)}&firewallId=${encodeURIComponent(firewallId)}&sessionId=${encodeURIComponent(sessionId)}`;
 
-        const sessionId = crypto.randomUUID();
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = `${protocol}//${window.location.host}/ws?type=terminal&token=${encodeURIComponent(sessionToken)}&firewallId=${encodeURIComponent(firewallId)}&sessionId=${encodeURIComponent(sessionId)}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+    ws.binaryType = "arraybuffer";
 
-        ws.binaryType = "arraybuffer";
+    ws.onopen = () => {
+      setStatus("connected");
+      term.writeln("\x1b[32mConectado!\x1b[0m\r\n");
+      term.focus();
+    };
 
-        ws.onopen = () => {
-          setStatus("connected");
-          term.writeln("\x1b[32mConectado! Aguardando SSH...\x1b[0m\r\n");
-          term.focus();
-        };
-
-        ws.onmessage = (event) => {
-          if (event.data instanceof ArrayBuffer) {
-            const text = new TextDecoder().decode(event.data);
-            term.write(text);
-          } else if (typeof event.data === "string") {
-            try {
-              const msg = JSON.parse(event.data);
-              if (msg.type === "error") {
-                term.writeln(`\r\n\x1b[31mErro: ${msg.message}\x1b[0m`);
-                setStatus("error");
-                setErrorMessage(msg.message);
-                onError?.(msg.message);
-              }
-            } catch {
-              term.write(event.data);
-            }
+    ws.onmessage = (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        const text = new TextDecoder().decode(event.data);
+        term.write(text);
+      } else if (typeof event.data === "string") {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "error") {
+            term.writeln(`\r\n\x1b[31mErro: ${msg.message}\x1b[0m`);
+            setStatus("error");
+            setErrorMessage(msg.message);
+            onError?.(msg.message);
           }
-        };
-
-        ws.onerror = () => {
-          setStatus("error");
-          setErrorMessage("Erro de conexao WebSocket");
-          term.writeln("\r\n\x1b[31mErro de conexao\x1b[0m");
-          onError?.("Erro de conexao WebSocket");
-        };
-
-        ws.onclose = (event) => {
-          setStatus("closed");
-          term.writeln(`\r\n\x1b[33mConexao encerrada: ${event.reason || "Desconectado"}\x1b[0m`);
-          onClose?.();
-        };
-
-        term.onData((data) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(data);
-          }
-        });
-
-      } catch (error: any) {
-        setStatus("error");
-        const msg = error.message || "Falha ao criar sessao";
-        setErrorMessage(msg);
-        term.writeln(`\r\n\x1b[31mErro: ${msg}\x1b[0m`);
-        onError?.(msg);
+        } catch {
+          term.write(event.data);
+        }
       }
     };
 
-    initConnection();
+    ws.onerror = () => {
+      setStatus("error");
+      setErrorMessage("Erro de conexao WebSocket");
+      term.writeln("\r\n\x1b[31mErro de conexao\x1b[0m");
+      onError?.("Erro de conexao WebSocket");
+    };
+
+    ws.onclose = (event) => {
+      setStatus("closed");
+      term.writeln(`\r\n\x1b[33mConexao encerrada: ${event.reason || "Desconectado"}\x1b[0m`);
+      onClose?.();
+    };
+
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    });
 
     const handleResize = () => {
       if (fitAddonRef.current) {
@@ -138,15 +145,66 @@ export function SSHTerminal({ firewallId, onClose, onError }: SSHTerminalProps) 
     };
 
     window.addEventListener("resize", handleResize);
+  };
 
+  useEffect(() => {
     return () => {
-      window.removeEventListener("resize", handleResize);
       if (wsRef.current) {
         wsRef.current.close();
       }
-      term.dispose();
+      if (termRef.current) {
+        termRef.current.dispose();
+      }
     };
-  }, [firewallId, onClose, onError]);
+  }, []);
+
+  if (status === "login") {
+    return (
+      <div className="flex flex-col h-full bg-zinc-900">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-700">
+          <span className="text-sm text-zinc-400">Login SSH</span>
+          <span className="text-xs text-zinc-500 font-mono">{firewallId.slice(0, 8)}</span>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="w-full max-w-sm space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ssh-username" className="text-zinc-300">Usuario</Label>
+              <Input
+                id="ssh-username"
+                data-testid="input-ssh-username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="root"
+                className="bg-zinc-800 border-zinc-700 text-white"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ssh-password" className="text-zinc-300">Senha</Label>
+              <Input
+                id="ssh-password"
+                data-testid="input-ssh-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Digite a senha"
+                className="bg-zinc-800 border-zinc-700 text-white"
+                onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+              />
+            </div>
+            <Button 
+              onClick={handleConnect} 
+              disabled={!username || !password || isConnecting}
+              className="w-full"
+              data-testid="button-ssh-connect"
+            >
+              {isConnecting ? "Conectando..." : "Conectar"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -156,15 +214,14 @@ export function SSHTerminal({ firewallId, onClose, onError }: SSHTerminalProps) 
             className={`w-2 h-2 rounded-full ${
               status === "connected"
                 ? "bg-green-500"
-                : status === "connecting" || status === "init"
+                : status === "connecting"
                 ? "bg-yellow-500 animate-pulse"
                 : "bg-red-500"
             }`}
           />
           <span className="text-sm text-zinc-400">
-            {status === "init" && "Iniciando..."}
             {status === "connecting" && "Conectando..."}
-            {status === "connected" && "Conectado"}
+            {status === "connected" && `Conectado como ${username}`}
             {status === "error" && `Erro: ${errorMessage}`}
             {status === "closed" && "Desconectado"}
           </span>

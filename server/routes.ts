@@ -669,6 +669,11 @@ export async function registerRoutes(
     try {
       const firewallId = req.params.id;
       const userId = req.userId!;
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
 
       const firewall = await storage.getFirewall(firewallId);
       if (!firewall) {
@@ -679,7 +684,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Firewall is not online" });
       }
 
-      const sessionToken = createWsSessionToken(userId, firewallId);
+      const sessionToken = createWsSessionToken(userId, firewallId, username, password);
 
       res.json({
         sessionToken,
