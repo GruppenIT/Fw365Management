@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# PROVIDE: firewall365_tunnel
+# REQUIRE: NETWORKING firewall365_agent
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="firewall365_tunnel"
+rcvar="firewall365_tunnel_enable"
+command="/usr/local/bin/python3.11"
+command_args="/usr/local/bin/firewall365-tunnel"
+pidfile="/var/run/${name}.pid"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+
+firewall365_tunnel_start()
+{
+    echo "Starting ${name}."
+    /usr/sbin/daemon -p ${pidfile} -u root ${command} ${command_args}
+}
+
+firewall365_tunnel_stop()
+{
+    if [ -f ${pidfile} ]; then
+        kill $(cat ${pidfile}) 2>/dev/null
+        rm -f ${pidfile}
+        echo "Stopped ${name}."
+    else
+        echo "${name} is not running."
+    fi
+}
+
+firewall365_tunnel_status()
+{
+    if [ -f ${pidfile} ]; then
+        if kill -0 $(cat ${pidfile}) 2>/dev/null; then
+            echo "${name} is running as pid $(cat ${pidfile})."
+        else
+            echo "${name} is not running (stale pidfile)."
+            rm -f ${pidfile}
+        fi
+    else
+        echo "${name} is not running."
+    fi
+}
+
+load_rc_config $name
+run_rc_command "$1"
