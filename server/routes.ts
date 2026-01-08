@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, generateToken, authMiddleware, type AuthRequest } from "./auth";
+import { createWsSessionToken } from "./websocket";
 import { 
   insertUserSchema, 
   insertTenantSchema, 
@@ -657,6 +658,32 @@ export async function registerRoutes(
       res.json({
         message: "Firewall approved successfully",
         firewall,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create WebSocket session token for SSH terminal
+  app.post("/api/firewalls/:id/ssh-session", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const firewallId = req.params.id;
+      const userId = req.userId!;
+
+      const firewall = await storage.getFirewall(firewallId);
+      if (!firewall) {
+        return res.status(404).json({ message: "Firewall not found" });
+      }
+
+      if (firewall.status !== "online") {
+        return res.status(400).json({ message: "Firewall is not online" });
+      }
+
+      const sessionToken = createWsSessionToken(userId, firewallId);
+
+      res.json({
+        sessionToken,
+        expiresIn: 60,
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message });

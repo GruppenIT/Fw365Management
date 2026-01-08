@@ -224,6 +224,13 @@ class ApiClient {
   async getAlerts(firewallId: string, limit: number = 50) {
     return this.request<any[]>(`/alerts/${firewallId}?limit=${limit}`);
   }
+
+  // SSH Session
+  async createSshSession(firewallId: string): Promise<{ sessionToken: string; expiresIn: number }> {
+    return this.request(`/firewalls/${firewallId}/ssh-session`, {
+      method: "POST",
+    });
+  }
 }
 
 export const api = new ApiClient();

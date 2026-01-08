@@ -1,12 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw, Cpu, HardDrive, Network, Clock, Server, Activity, AlertTriangle, CheckCircle, XCircle, Wifi } from "lucide-react";
+import { ArrowLeft, RefreshCw, Cpu, HardDrive, Network, Clock, Server, Activity, AlertTriangle, CheckCircle, XCircle, Wifi, Terminal } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -15,11 +16,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { SSHTerminal } from "@/components/ssh-terminal";
 
 export default function FirewallDetails() {
   const [, params] = useRoute("/firewalls/:id");
   const id = params?.id;
   const queryClient = useQueryClient();
+  const [sshOpen, setSshOpen] = useState(false);
 
   const { data: firewall, isLoading: isLoadingFirewall } = useQuery({
     queryKey: ["firewall", id],
@@ -177,12 +186,37 @@ export default function FirewallDetails() {
             <p className="text-muted-foreground mt-1">{firewall.name} • {firewall.serialNumber}</p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => setSshOpen(true)}
+              disabled={firewall.status !== "online"}
+              data-testid="button-ssh"
+            >
+              <Terminal className="h-4 w-4" />
+              SSH
+            </Button>
             <Button variant="outline" size="icon" onClick={handleRefresh} data-testid="button-refresh">
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
+
+      <Dialog open={sshOpen} onOpenChange={setSshOpen}>
+        <DialogContent className="max-w-4xl h-[600px] p-0 overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Console SSH - {firewall.hostname}</DialogTitle>
+          </DialogHeader>
+          {sshOpen && id && (
+            <SSHTerminal 
+              firewallId={id} 
+              onClose={() => setSshOpen(false)}
+              onError={(error) => console.error("SSH Error:", error)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="pb-3">

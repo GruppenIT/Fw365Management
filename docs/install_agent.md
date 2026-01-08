@@ -284,7 +284,91 @@ verify_ssl = false
 
 ---
 
-## Seção 7: Atualizações
+## Seção 7: Túnel SSH (Opcional)
+
+O módulo de túnel permite acesso SSH remoto ao firewall através da interface web do Firewall365.
+
+### Passo 7.1: Instalar dependências
+
+```bash
+pkg install py311-websocket-client
+```
+
+### Passo 7.2: Baixar o módulo de túnel
+
+```bash
+curl -o /usr/local/bin/firewall365-tunnel https://raw.githubusercontent.com/GruppenIT/Fw365Management/refs/heads/main/agent/tunnel.py
+chmod +x /usr/local/bin/firewall365-tunnel
+```
+
+### Passo 7.3: Criar serviço rc.d
+
+```bash
+cat > /usr/local/etc/rc.d/firewall365_tunnel << 'EOF'
+#!/bin/sh
+#
+# PROVIDE: firewall365_tunnel
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="firewall365_tunnel"
+rcvar="firewall365_tunnel_enable"
+command="/usr/local/bin/python3.11"
+command_args="/usr/local/bin/firewall365-tunnel"
+pidfile="/var/run/${name}.pid"
+command_interpreter="/usr/local/bin/python3.11"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+
+firewall365_tunnel_start()
+{
+    echo "Starting ${name}."
+    /usr/sbin/daemon -p ${pidfile} -u root ${command} ${command_args}
+}
+
+firewall365_tunnel_stop()
+{
+    if [ -f ${pidfile} ]; then
+        kill $(cat ${pidfile})
+        rm -f ${pidfile}
+        echo "Stopped ${name}."
+    fi
+}
+
+load_rc_config $name
+run_rc_command "$1"
+EOF
+
+chmod +x /usr/local/etc/rc.d/firewall365_tunnel
+```
+
+### Passo 7.4: Habilitar e iniciar
+
+```bash
+sysrc firewall365_tunnel_enable="YES"
+service firewall365_tunnel start
+```
+
+### Passo 7.5: Verificar funcionamento
+
+```bash
+tail -f /var/log/firewall365/agent.log | grep TUNNEL
+```
+
+Você deve ver:
+```
+[TUNNEL] Iniciando Firewall365 Tunnel v1.0.0
+[TUNNEL] Conectando a wss://opn.gruppen.com.br/ws...
+[TUNNEL] WebSocket conectado
+[TUNNEL] Conectado ao servidor
+```
+
+---
+
+## Seção 8: Atualizações
 
 ### Atualizar o Agente
 
@@ -299,9 +383,17 @@ curl -o /usr/local/bin/firewall365-agent https://raw.githubusercontent.com/Grupp
 service firewall365_agent start
 ```
 
+### Atualizar o Túnel
+
+```bash
+service firewall365_tunnel stop
+curl -o /usr/local/bin/firewall365-tunnel https://raw.githubusercontent.com/GruppenIT/Fw365Management/refs/heads/main/agent/tunnel.py
+service firewall365_tunnel start
+```
+
 ---
 
-## Seção 8: Desinstalação
+## Seção 9: Desinstalação
 
 ```bash
 # Parar e desabilitar serviço
